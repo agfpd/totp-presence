@@ -279,12 +279,22 @@ sudo ./core/setup.sh install
 
 # 2. Claude Code интеграция (поверх ядра)
 sudo ./examples/claude-code-hook/install.sh
+
+# 3. (опционально) MCP-сервер для активного режима
+#    см. examples/mcp-server/README.ru.md — добавляется через
+#    ~/.claude.json или конфиг другого MCP-клиента, sudo не нужен
 ```
 
 Оба установщика попросят sudo, печатают QR для аутентификатора и
 инструкции для следующего шага. Второй печатает JSON-сниппет для
 `~/.claude/settings.json`, который ты мержишь руками — Claude Code
 попросит подтвердить правку, это by design.
+
+MCP-сервер — третий, опциональный слой: hook реактивно блокирует
+тулы, MCP даёт агенту три тула (`totp_verify`, `totp_check_session`,
+`totp_status`) для проактивной проверки сессии до значимого
+действия. Можно использовать любую комбинацию: только hook, только
+MCP, или оба слоя.
 
 ### macOS + Apple Passwords
 
