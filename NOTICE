@@ -1,0 +1,11 @@
+totp-hook
+Copyright 2026 Artur Agafapudov
+
+This product includes software developed as a reference implementation of
+the TOTP-verified human-presence pattern for autonomous coding agents.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this software except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
