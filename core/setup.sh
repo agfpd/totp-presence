@@ -49,7 +49,7 @@ require_root() {
 require_os() {
     case "$(uname -s)" in
         Darwin|Linux) : ;;
-        *) die "unsupported OS. totp-presence runs on macOS and Linux only. On Windows, use WSL2." ;;
+        *) die "unsupported OS. totp-presence runs on macOS and Linux only. On Windows, use WSL." ;;
     esac
 }
 

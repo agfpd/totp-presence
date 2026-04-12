@@ -261,7 +261,7 @@ fi
 
 # -------- write session (optional) --------
 
-if [ -n "$SESSION_PATH" ]; then
+if [ "$SESSION_FLAG" = "--session" ] && [ -n "$SESSION_PATH" ]; then
     if ! date +%s > "$SESSION_PATH"; then
         echo "error: failed to write session file at $SESSION_PATH" >&2
         exit 1
