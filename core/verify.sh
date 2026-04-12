@@ -43,13 +43,10 @@
 #     time-to-break drops to roughly two weeks of uninterrupted
 #     brute-force.
 #
-#   Two weeks is still slow enough to dominate any realistic
-#   injection scenario (an injected agent will not quietly brute-
-#   force for two weeks without tripping other defenses), but it
-#   is not the "years" floor that a fully serialized verifier
-#   would give. If your threat model needs that hard floor, wrap
-#   verify in an external flock, or add a lock around the
-#   read-check-verify-write block in this script.
+#   To close this gap, verify acquires an exclusive lock (atomic
+#   mkdir) at startup, serializing all concurrent calls. This
+#   makes the counter reliable regardless of parallelism, keeping
+#   the "years" floor intact.
 #
 # Exit codes:
 #   0 — code valid (session written if --session was passed)
@@ -69,6 +66,16 @@
 #     never appears in `ps`.
 
 set -u
+
+# -------- serialize concurrent calls --------
+# mkdir is atomic on all POSIX systems (macOS + Linux). Ensures
+# brute-force counter cannot be bypassed by parallel forks.
+LOCK_DIR="/etc/totp-presence/.verify-lock"
+cleanup_lock() { rmdir "$LOCK_DIR" 2>/dev/null; }
+trap cleanup_lock EXIT
+while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    sleep 0.05
+done
 
 INSTALL_DIR="/etc/totp-presence"
 SECRET_FILE="$INSTALL_DIR/secret"

@@ -87,22 +87,23 @@ fi
 TOOL_NAME=""
 TOOL_FILE_PATH=""
 if [ -n "$INPUT" ]; then
-    eval "$(printf '%s' "$INPUT" | python3 -c '
+    # Parse JSON without eval: Python writes values separated by a NUL byte,
+    # bash reads them with `read -d ''`. No shell interpretation of data.
+    PARSED=$(printf '%s' "$INPUT" | python3 -c '
 import sys, json
 try:
     data = json.load(sys.stdin)
     name = data.get("tool_name", "")
-    # Extract file_path from tool_input for Edit/Write guards.
     file_path = ""
     tool_input = data.get("tool_input", {})
     if isinstance(tool_input, dict):
         file_path = tool_input.get("file_path", "")
-    print(f"TOOL_NAME={name!r}")
-    print(f"TOOL_FILE_PATH={file_path!r}")
+    sys.stdout.write(name + "\0" + file_path)
 except Exception:
-    print("TOOL_NAME='\'''\''")
-    print("TOOL_FILE_PATH='\'''\''")
-' 2>/dev/null || echo "TOOL_NAME=''; TOOL_FILE_PATH=''")"
+    sys.stdout.write("\0")
+' 2>/dev/null) || PARSED=$'\0'
+    IFS= read -r -d '' TOOL_NAME <<< "$PARSED" || true
+    TOOL_FILE_PATH="${PARSED#*$'\0'}"
 fi
 
 case "$TOOL_NAME" in

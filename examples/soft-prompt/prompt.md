@@ -47,7 +47,9 @@ totp_verify("<код>", "<integration>")
 
 **Если MCP недоступен** — shell-команды:
 ```sh
-cat /etc/totp-presence/<integration>-session   # метка времени сессии
+# Проверить сессию: если (сейчас - метка) < 1500 — открыта
+echo $(( $(date +%s) - $(cat /etc/totp-presence/<integration>-session) ))
+# Верифицировать код и открыть сессию
 sudo /etc/totp-presence/verify <код> --session /etc/totp-presence/<integration>-session
 ```
 

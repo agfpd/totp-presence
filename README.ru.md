@@ -106,8 +106,8 @@ sudo ./core/setup.sh install
 # 2. Файлы сессии для Claude Code
 sudo ./examples/claude-code-hook/install.sh
 
-# 3. MCP-сервер — агент получает инструменты проверки сессии
-#    Добавить запись в ~/.claude.json — см. examples/mcp-server/README.ru.md
+# 3. MCP-сервер (pip3 install fastmcp, потом добавить в ~/.claude.json)
+#    Подробности — см. examples/mcp-server/README.ru.md
 
 # 4. Soft-prompt — инструкции агенту когда проверять
 #    Скопировать блок в CLAUDE.md — см. examples/soft-prompt/README.ru.md
