@@ -134,9 +134,9 @@ Cursor, custom bash, REST endpoint) — ты волен либо использ�
 тот же паттерн с своим session-файлом, либо вообще не использовать
 session, а дёргать verify каждый раз. Ядро одинаково служит обоим.
 
-## Threat model в контексте этой интеграции
+## Security model в контексте этой интеграции
 
-См. [../../THREAT_MODEL.ru.md](../../THREAT_MODEL.ru.md) для полной
+См. [../../SECURITY_MODEL.ru.md](../../SECURITY_MODEL.ru.md) для полной
 картины. Кратко про то, что **эта конкретная интеграция** закрывает
 и чего нет:
 
@@ -146,5 +146,5 @@ guard.sh (файл root-owned).
 
 — **Не закрывает:** тулы не в матчере. Prompt-injection, убеждающую
 агента *легитимно* запросить код у владельца под предлогом
-безобидной задачи (§4 threat model — session reuse во время
+безобидной задачи (§4 security model — session reuse во время
 открытого окна). RCE-escape в обход harness.

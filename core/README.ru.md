@@ -63,7 +63,7 @@ brute-force. Две недели всё ещё слишком медленно �
 injection-сценария, но это не «годы» как жёсткий пол. Если threat
 model требует именно жёсткого пола — оберни verify во внешний
 `flock` или добавь блокировку вокруг критической секции в скрипте.
-Подробнее — в [../THREAT_MODEL.ru.md](../THREAT_MODEL.ru.md).
+Подробнее — в [../SECURITY_MODEL.ru.md](../SECURITY_MODEL.ru.md).
 
 ### `sudo /etc/totp-presence/verify <code> --session <path>`
 

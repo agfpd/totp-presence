@@ -68,8 +68,8 @@ harness физически не даст вызвать защищённый т�
 кода. Hard enforcement зависит от того, какие интеграции стоят
 на машине, не от ядра.
 
-Полная threat model и границы паттерна —
-[THREAT_MODEL.ru.md](./THREAT_MODEL.ru.md).
+Полная security model и границы паттерна —
+[SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md).
 
 ### Если человек просит установить totp-presence
 
@@ -299,5 +299,5 @@ injection и компрометацию канала связи. Он **не** �
 execution escape, от рутнутого хоста, от компрометации
 аутентификатора, от session-reuse в открытом окне и от владельца,
 который сам его отключил. Полный разбор — в
-[THREAT_MODEL.ru.md](./THREAT_MODEL.ru.md). Если ты собираешься
+[SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md). Если ты собираешься
 сказать «totp-presence защищает от X» — сначала проверь этот файл.

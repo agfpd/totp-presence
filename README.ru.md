@@ -4,9 +4,7 @@
 > текстом, который его имитирует.
 > Черновик, рабочая реализация, до публикации.
 
-**Поддерживаемые платформы:** macOS, Linux.
-**Windows:** только через WSL2 — нативная Windows не поддерживается
-(нет модели unix-прав, нет sudoers).
+**Поддерживаемые платформы:** macOS, Linux, Windows через WSL.
 
 ## Что это
 
@@ -165,7 +163,7 @@ Code. Позволяет агенту *проактивно* проверять 
 
 Это не абсолютная гарантия (физическое принуждение, угон
 аутентификатора и session-reuse в открытом окне остаются возможными
-— см. [THREAT_MODEL.ru.md](./THREAT_MODEL.ru.md)), но заметно
+— см. [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md)), но заметно
 сильнее, чем утверждение в тексте, которое можно подделать
 переформулировкой или компрометацией канала.
 
@@ -247,7 +245,7 @@ Telegram-ботов, каждый с прошитым `chat_id` как един�
 ## Чем это НЕ является
 
 Короткая секция честности. Полная версия —
-[THREAT_MODEL.ru.md](./THREAT_MODEL.ru.md).
+[SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md).
 
 - **Не замена sandbox.** Если хост скомпрометирован под root,
   `/etc/totp-presence/secret` читаем атакующему, и защита сломана.
@@ -348,7 +346,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 - [x] Ядро: verify (pure + optional session), setup, sudoers
 - [x] Claude Code hook интеграция: guard.sh, install.sh, settings snippet
 - [x] MCP-сервер интеграция: totp_verify / totp_check_session / totp_status
-- [x] [THREAT_MODEL.ru.md](./THREAT_MODEL.ru.md)
+- [x] [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md)
 - [x] [CLAUDE.ru.md](./CLAUDE.ru.md)
 - [ ] Английские версии всех документов (сейчас только русские)
 - [ ] Обкатка MCP-сервера в Claude Desktop / Cursor / Continue
