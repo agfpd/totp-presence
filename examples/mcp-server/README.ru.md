@@ -127,12 +127,12 @@ MCP-тулы добавляют **проактивный слой**: агент 
    `claude-code-session` и `claude-code-config` — значит у этой
    интеграции имя `claude-code`.
 
-3. Python 3.10+ и MCP SDK:
+3. Python 3.10+ и FastMCP 3.x:
 
    ```sh
    pip3 install -r examples/mcp-server/requirements.txt
    # или напрямую:
-   pip3 install mcp
+   pip3 install fastmcp
    ```
 
 ## Как подключить к MCP-клиенту
@@ -260,12 +260,12 @@ Session-файла нет под `/etc/totp-presence/<X>-session`. Либо ты
 установил соответствующую интеграцию, либо опечатался в имени. Вызови
 `totp_status` чтобы посмотреть, какие интеграции видны.
 
-### `mcp package not installed`
+### `fastmcp package not installed`
 
-Сервер использует официальный Python MCP SDK:
+Сервер использует FastMCP 3.x:
 
 ```sh
-pip3 install mcp
+pip3 install fastmcp
 ```
 
 Если твой Python — через pyenv/asdf/conda, убедись, что MCP-клиент
