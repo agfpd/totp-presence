@@ -4,17 +4,23 @@
 # Claude Code PreToolUse hook that denies the current tool call unless
 # this integration's session file contains a recent-enough unix timestamp.
 #
-# Default policy: fail-safe. The settings.json snippet installs this hook
-# with matcher ".*" — every tool call arrives here — and then the hook
-# waives a short, stable allowlist of unambiguously **read-only** tools.
-# Everything else requires an open session.
+# Two deployment modes:
 #
-# Why not an allowlist of "dangerous" tools in the matcher? Because the
-# set of dangerous tools in Claude Code grows over time (new MCP servers,
-# new plugins, new Claude Code updates). If the hook protects only what
-# today looks risky, tomorrow's new tool is unprotected by default. A
-# read-only exit-list is the inverse: small, stable, and fails safe on
-# anything the hook doesn't recognise.
+# 1. Full lockdown (matcher ".*", EDIT_WRITE_CONFIG_ONLY absent/false):
+#    Every tool call arrives here. The hook waives a short, stable
+#    allowlist of unambiguously read-only tools. Everything else —
+#    including Edit/Write — requires an open session. Config paths
+#    (settings.json, CLAUDE.md, etc.) require a tighter window.
+#
+# 2. Selective (matcher "Edit|Write|<gui-tools>", EDIT_WRITE_CONFIG_ONLY=true):
+#    Only listed tools arrive. Edit/Write on non-config files pass
+#    through freely. Edit/Write on config paths require the tight
+#    CONFIG_WINDOW_SECONDS. GUI tools require the normal session.
+#
+# Why fail-safe by default? The set of dangerous tools in Claude Code
+# grows over time (new MCP servers, new plugins, new updates). A
+# read-only exit-list is small, stable, and fails safe on anything
+# the hook doesn't recognise.
 #
 # Session management lives in the integration, not in the core:
 #   /etc/totp-presence/claude-code-session     — root:wheel 644, timestamp
@@ -42,6 +48,17 @@ WINDOW_SECONDS=1500  # 25 minutes
 # Example config line:
 #   EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react
 EXTRA_SAFE_TOOLS=""
+
+# When true, Edit/Write are only blocked for protected config paths
+# (settings.json, CLAUDE.md, etc.) — non-config edits pass through.
+# When false or absent, Edit/Write follow normal session check like
+# any other tool (fail-safe default for full-lockdown deployments).
+#
+# Use case: selective matcher (Edit|Write|mcp__peekaboo__.*|...)
+# where the user wants config protection without blocking all edits.
+# With matcher ".*" this should stay false — otherwise Edit/Write
+# bypass the session check entirely for non-config files.
+EDIT_WRITE_CONFIG_ONLY=""
 
 # Tighter window for protected config files (settings.json, CLAUDE.md,
 # .claude.json). These files control hooks, MCP servers, and agent
@@ -79,6 +96,15 @@ if [ -r "$CONFIG_FILE" ]; then
         EXTRA_SAFE_TOOLS="$EST_VALUE"
     fi
     unset EST_VALUE
+
+    # Parse EDIT_WRITE_CONFIG_ONLY — boolean (true/false).
+    EWCO_VALUE=$(grep -E '^[[:space:]]*EDIT_WRITE_CONFIG_ONLY[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
+                | head -1 \
+                | sed -E 's/^[[:space:]]*EDIT_WRITE_CONFIG_ONLY[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//')
+    if [ "$EWCO_VALUE" = "true" ]; then
+        EDIT_WRITE_CONFIG_ONLY="true"
+    fi
+    unset EWCO_VALUE
 fi
 
 # -------- read-only exit list --------
@@ -103,23 +129,30 @@ fi
 TOOL_NAME=""
 TOOL_FILE_PATH=""
 if [ -n "$INPUT" ]; then
-    # Parse JSON without eval: Python writes values separated by a NUL byte,
-    # bash reads them with `read -d ''`. No shell interpretation of data.
-    PARSED=$(printf '%s' "$INPUT" | python3 -c '
+    # Parse JSON without eval: Python writes values on separate lines,
+    # bash reads them with `read`. No shell interpretation of data.
+    #
+    # Previous approach used NUL-separated output with ${PARSED#*$'\0'}
+    # but bash 3.2 (macOS default) chokes on $'\0' inside ${...}
+    # parameter expansion — TOOL_FILE_PATH was silently empty, breaking
+    # config path protection entirely.
+    TOOL_NAME=$(printf '%s' "$INPUT" | python3 -c '
 import sys, json
 try:
     data = json.load(sys.stdin)
-    name = data.get("tool_name", "")
-    file_path = ""
-    tool_input = data.get("tool_input", {})
-    if isinstance(tool_input, dict):
-        file_path = tool_input.get("file_path", "")
-    sys.stdout.write(name + "\0" + file_path)
+    print(data.get("tool_name", ""))
 except Exception:
-    sys.stdout.write("\0")
-' 2>/dev/null) || PARSED=$'\0'
-    IFS= read -r -d '' TOOL_NAME <<< "$PARSED" || true
-    TOOL_FILE_PATH="${PARSED#*$'\0'}"
+    print("")
+' 2>/dev/null) || TOOL_NAME=""
+    TOOL_FILE_PATH=$(printf '%s' "$INPUT" | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    ti = data.get("tool_input", {})
+    print(ti.get("file_path", "") if isinstance(ti, dict) else "")
+except Exception:
+    print("")
+' 2>/dev/null) || TOOL_FILE_PATH=""
 fi
 
 case "$TOOL_NAME" in
@@ -143,6 +176,37 @@ if [ -n "$EXTRA_SAFE_TOOLS" ] && [ -n "$TOOL_NAME" ]; then
     if printf '%s' "$TOOL_NAME" | grep -qE "^($EXTRA_SAFE_TOOLS)$"; then
         exit 0
     fi
+fi
+
+# -------- selective Edit/Write bypass --------
+#
+# When EDIT_WRITE_CONFIG_ONLY=true (selective deployment), Edit/Write
+# on non-config files pass through without a session check. Config
+# paths still require the tighter CONFIG_WINDOW_SECONDS below.
+#
+# When EDIT_WRITE_CONFIG_ONLY is false/absent (full-lockdown), this
+# block is skipped and Edit/Write fall through to the normal session
+# check — matching the fail-safe default behaviour.
+
+if [ "$EDIT_WRITE_CONFIG_ONLY" = "true" ]; then
+    case "$TOOL_NAME" in
+        Edit|Write)
+            # IS_PROTECTED_PATH is computed below, but we need it now.
+            # Inline the same check here to avoid reordering the script.
+            _IS_CONFIG=""
+            if [ -n "$TOOL_FILE_PATH" ]; then
+                case "$TOOL_FILE_PATH" in
+                    */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md)
+                        _IS_CONFIG="1"
+                        ;;
+                esac
+            fi
+            if [ -z "$_IS_CONFIG" ]; then
+                exit 0  # non-config Edit/Write — allow without session
+            fi
+            unset _IS_CONFIG
+            ;;
+    esac
 fi
 
 # -------- helper: emit deny --------

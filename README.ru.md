@@ -136,6 +136,14 @@ JSON-сниппет из шага 2 в `~/.claude/settings.json`. Claude Code
 - полная vs выборочная блокировка: плюсы/минусы каждого режима
 - MCP-тулы totp-presence автоматически в whitelist (иначе deadlock)
 -->
+<!-- TODO: документировать EDIT_WRITE_CONFIG_ONLY:
+- новая опция в config: EDIT_WRITE_CONFIG_ONLY=true
+- selective mode: Edit/Write блокируются только для config-файлов
+  (settings.json, settings.local.json, .claude.json, CLAUDE.md)
+- full mode (default): Edit/Write следуют обычной session check
+- пример matcher для selective: Edit|Write|mcp__peekaboo__.*|...
+- пример matcher для full: .*
+-->
 
 <details>
 <summary>macOS + Apple Passwords</summary>
