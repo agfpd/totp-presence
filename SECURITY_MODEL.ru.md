@@ -212,6 +212,12 @@ root. Если это предположение не выполнено, нуж
 код не потребовался.
 
 **Mitigation, per-action:** держи `WINDOW_SECONDS` коротким.
+**Mitigation, config-protection:** в `claude-code-hook` правка
+файлов, контролирующих безопасность агента (settings.json,
+.claude.json, CLAUDE.md), требует **свежую** сессию
+(`CONFIG_WINDOW_SECONDS`, по умолчанию 120с) — даже если
+обычная сессия ещё активна. Это не даёт injection в открытом
+окне отключить hook или изменить инструкции агента.
 **Mitigation, prompt-level:** правило в [CLAUDE.ru.md](./CLAUDE.ru.md) —
 для необратимых действий просить дополнительное подтверждение у
 владельца даже при открытой сессии. Это правило не enforceable
