@@ -39,24 +39,29 @@ command -v python3   # стандартная библиотека, pip не н�
 
 ### Шаг 2. Установи ядро
 
+**Перед запуском** подготовь аутентификатор — QR появится во время
+установки и его нужно будет сразу отсканировать:
+
+- **Полноценные аутентификаторы** (Google Authenticator, Authy,
+  1Password, Bitwarden) — готовы сразу, просто сканируют QR.
+- **Apple Passwords на macOS** — требует запись-плейсхолдер заранее:
+  Passwords → New Password → Title `totp-presence`, любой
+  username/password, Website `https://totp-presence.local`.
+  Сохрани. Потом при сканировании: Codes → + → Scan QR Code
+  with Camera → выбрать запись.
+
+Когда аутентификатор готов:
+
 ```sh
 sudo ./core/setup.sh install
 ```
 
 sudo попросит пароль один раз. Установщик:
 - сгенерирует секретный ключ под root
-- покажет `otpauth://` URL и QR-код (если есть `qrencode`)
+- покажет QR-код — отсканируй аутентификатором
 - пропишет sudoers-правило: sudo без пароля **только** для
   `/etc/totp-presence/verify`
 - проведёт self-test — попросит свежий код
-
-Помоги человеку привязать аутентификатор:
-- **Полноценные аутентификаторы** (Google Authenticator, Authy,
-  1Password, Bitwarden) — просто сканируют QR.
-- **Apple Passwords на macOS** — требует запись-плейсхолдер:
-  Passwords → New Password → Title `totp-presence`, любой
-  username/password, Website `https://totp-presence.local`.
-  Потом Codes → + → Scan QR Code with Camera → выбрать запись.
 
 ### Шаг 3. Установи интеграцию
 
@@ -70,12 +75,20 @@ sudo ./examples/claude-code-hook/install.sh
 
 ### Шаг 4. Подключи MCP-сервер
 
-Добавь запись в `~/.claude.json` — формат и путь описаны в
+Добавь запись в конфиг MCP-серверов. Есть два места:
+- `~/.claude.json` — глобально для всех проектов
+- `.mcp.json` в корне проекта — только для этого проекта
+
+Формат и примеры — в
 [examples/mcp-server/README.ru.md](./examples/mcp-server/README.ru.md).
 sudo не нужен. После перезапуска Claude Code у агента появятся
 инструменты `mcp__totp-presence__totp_verify`,
 `mcp__totp-presence__totp_check_session`,
 `mcp__totp-presence__totp_status`.
+
+На macOS с Homebrew Python `pip3 install fastmcp` может отказать
+с ошибкой PEP 668. Решение: `pip3 install --break-system-packages
+fastmcp` или использовать `pipx install fastmcp`.
 
 ### Шаг 5. Добавь soft-prompt
 
@@ -87,14 +100,66 @@ sudo не нужен. После перезапуска Claude Code у аген�
 
 ### Шаг 6 (опционально). Включи жёсткую блокировку
 
-Добавь JSON-сниппет из шага 3 в `~/.claude/settings.json`.
-Claude Code попросит явное подтверждение от человека — это
-подтверждение должно прийти от него, не от тебя.
+**Не добавляй сниппет сам — предложи человеку и объясни что
+произойдёт.** Спроси, какой режим подходит:
 
-После этого хук блокирует все инструменты кроме read-only
-(`Read`, `Glob`, `Grep`, `LS`, `TodoWrite`, `WebSearch`) до
-открытой сессии. Новые инструменты автоматически попадают под
-защиту.
+**Полная блокировка** (рекомендуется). Matcher `".*"` — каждый
+вызов проходит через хук. Хук пропускает read-only инструменты
+(`Read`, `Glob`, `Grep`, `LS`, `TodoWrite`, `WebSearch`) и
+totp-presence MCP-тулы, всё остальное требует сессию. Новые
+инструменты автоматически защищены.
+
+```json
+{
+  "matcher": ".*",
+  "hooks": [
+    {
+      "type": "command",
+      "command": "/etc/totp-presence/claude-code-guard.sh"
+    }
+  ]
+}
+```
+
+**Выборочная блокировка.** Matcher на конкретные инструменты —
+только они проходят через хук. Остальные работают свободно.
+Гибче, но новые инструменты не защищены автоматически.
+
+```json
+{
+  "matcher": "Bash|Write|Edit|NotebookEdit|WebFetch|Agent|Task",
+  "hooks": [
+    {
+      "type": "command",
+      "command": "/etc/totp-presence/claude-code-guard.sh"
+    }
+  ]
+}
+```
+
+Спроси человека, куда добавить сниппет:
+- **Проектный** `<проект>/.claude/settings.json` — только для
+  этого проекта/агента.
+- **Глобальный** `~/.claude/settings.json` — для всех проектов
+  на машине.
+
+Добавляется в массив `hooks.PreToolUse`. Claude Code попросит
+явное подтверждение — это подтверждение должно прийти от
+человека, не от тебя.
+
+**Messaging-тулы.** Если агент общается с человеком через
+внешний канал (Telegram, Slack и т.п.), этот тул нужно разрешить
+без сессии — иначе агент не сможет попросить код. Добавь строку
+`EXTRA_SAFE_TOOLS=<имя_тула>` в
+`/etc/totp-presence/claude-code-config` (через sudo). Несколько
+тулов — через `|`:
+```
+EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react
+```
+
+**Как отключить жёсткую блокировку:** удалить сниппет из
+settings.json. Мягкий режим (MCP + soft-prompt) продолжит
+работать.
 
 ### Справочные команды
 

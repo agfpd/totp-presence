@@ -36,6 +36,13 @@ VERIFY_CMD="sudo /etc/totp-presence/verify <code> --session /etc/totp-presence/c
 # Default window if config is missing or malformed.
 WINDOW_SECONDS=1500  # 25 minutes
 
+# Extra safe tools from config. Pipe-separated list of tool names that
+# should be allowed without a session (e.g. messaging tools the agent
+# needs to ask the human for a TOTP code).
+# Example config line:
+#   EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react
+EXTRA_SAFE_TOOLS=""
+
 # Tighter window for protected config files (settings.json, CLAUDE.md,
 # .claude.json). These files control hooks, MCP servers, and agent
 # instructions — editing them can disable security protection.
@@ -63,6 +70,15 @@ if [ -r "$CONFIG_FILE" ]; then
         WINDOW_SECONDS="$CFG_VALUE"
     fi
     unset CFG_VALUE
+
+    # Parse EXTRA_SAFE_TOOLS — pipe-separated tool names.
+    EST_VALUE=$(grep -E '^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
+                | head -1 \
+                | sed -E 's/^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//')
+    if [ -n "$EST_VALUE" ]; then
+        EXTRA_SAFE_TOOLS="$EST_VALUE"
+    fi
+    unset EST_VALUE
 fi
 
 # -------- read-only exit list --------
@@ -112,7 +128,22 @@ case "$TOOL_NAME" in
         # only the agent's in-session todo list, never disk state).
         exit 0
         ;;
+    mcp__totp-presence__*)
+        # totp-presence MCP tools must be accessible without a session —
+        # otherwise the agent cannot call totp_verify to open one.
+        # These tools are safe: they only read session state or verify
+        # a code through the root-owned core (which has its own
+        # brute-force protection).
+        exit 0
+        ;;
 esac
+
+# Check EXTRA_SAFE_TOOLS from config (pipe-separated).
+if [ -n "$EXTRA_SAFE_TOOLS" ] && [ -n "$TOOL_NAME" ]; then
+    if printf '%s' "$TOOL_NAME" | grep -qE "^($EXTRA_SAFE_TOOLS)$"; then
+        exit 0
+    fi
+fi
 
 # -------- helper: emit deny --------
 
