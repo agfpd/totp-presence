@@ -140,3 +140,29 @@ sudo ./examples/claude-code-hook/install.sh uninstall
 предлогом безобидной задачи (session reuse в открытом окне).
 
 Полный разбор — [SECURITY_MODEL.ru.md](../../SECURITY_MODEL.ru.md).
+
+<!-- TODO: секция "Headless-агенты (Telegram, Slack и др.)"
+Особенности из живого теста на production-агенте:
+
+1. Канал связи: messaging-тул обязательно в EXTRA_SAFE_TOOLS,
+   иначе агент не может попросить код → deadlock. Человек ждёт
+   ответа, агент молчит.
+
+2. Approve-диалог Claude Code в headless: человек видит только
+   "Permission: Edit / Allowed" без diff. Approve бесполезен
+   для security-решений → агент не должен сам менять settings.json,
+   должен показать сниппет и попросить человека добавить вручную.
+
+3. Полная блокировка (matcher .*) vs выборочная: при полной нужен
+   EXTRA_SAFE_TOOLS для канала связи. При выборочной — messaging
+   не попадает в matcher, EXTRA_SAFE_TOOLS не нужен.
+
+4. MCP-тулы totp-presence в whitelist: без них агент не может
+   открыть сессию (chicken-and-egg). Уже в коде, описать как
+   архитектурное решение.
+
+5. Первый запуск после включения хука: если MCP-сервер ещё не
+   загружен (первая сессия), а хук уже активен с matcher .* —
+   агент заблокирован до перезапуска. Порядок: сначала MCP в
+   конфиг + перезапуск, потом хук.
+-->
