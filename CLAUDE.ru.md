@@ -47,9 +47,9 @@ sudo ./examples/claude-code-hook/install.sh
   тремя тулами: `totp_verify`, `totp_check_session`, `totp_status`.
   Работает в любом MCP-клиенте, позволяет агенту самому вызывать
   verification, а не только реагировать на deny от hook.
-- **`examples/soft-prompt/`** — готовый блок текста для system prompt.
-  Мягкая защита для агентов без hook-слоя и без MCP. Агент следует
-  правилам запроса TOTP-кода на основе текстовых инструкций.
+- **`examples/soft-prompt/`** — инструкции для system prompt,
+  работающие в связке с MCP-сервером. Промпт говорит агенту
+  *когда* проверять идентичность, MCP-тулы дают *чем* (active mode).
 
 ### Зачем это нужно тебе
 
