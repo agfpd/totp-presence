@@ -48,6 +48,10 @@ sudoers-правило, одна публичная функция «прове�
   или по запросу, в любом MCP-совместимом клиенте (Claude Code,
   Claude Desktop, Cursor, Continue). Работает рядом с hook или
   вместо него.
+- [soft-prompt](./examples/soft-prompt/) — готовый блок текста для
+  system prompt. **Мягкая защита**: агент следует правилам запроса
+  TOTP-кода без hook-слоя и без MCP. Подходит для агентов без
+  поддержки хуков, или как дополнение к hook/MCP.
 
 Ядро не зависит ни от одной конкретной агентской системы. Любой
 агент, умеющий вызвать shell-команду, может использовать его через
@@ -351,7 +355,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 - [x] [CLAUDE.ru.md](./CLAUDE.ru.md)
 - [ ] Английские версии всех документов (сейчас только русские)
 - [ ] Обкатка MCP-сервера в Claude Desktop / Cursor / Continue
-- [ ] Soft-prompt интеграция — готовый system-prompt пример для
+- [x] Soft-prompt интеграция — готовый system-prompt пример для
       агентов без hook-слоя и без MCP
 - [ ] Generic bash wrapper для самописных скриптов
 - [ ] Claude Code plugin package — упаковка hook + MCP в `/plugin install`
