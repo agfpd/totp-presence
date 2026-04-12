@@ -14,9 +14,9 @@
 #
 # Requirements:
 #   - macOS or Linux
-#   - python3
-#   - pyotp (pip3 install pyotp)
-#   - qrcode (optional, for ASCII QR — pip3 install qrcode)
+#   - python3 (standard library only, no pip packages needed)
+#   - qrencode (optional, for terminal QR — brew install qrencode
+#     on macOS, apt install qrencode on Linux)
 
 set -euo pipefail
 
@@ -53,9 +53,8 @@ require_os() {
     esac
 }
 
-require_python_pyotp() {
+require_python() {
     command -v python3 >/dev/null 2>&1 || die "python3 not found in PATH"
-    python3 -c "import pyotp" 2>/dev/null || die "python module 'pyotp' not installed. install with: pip3 install pyotp"
 }
 
 invoking_user() {
@@ -71,7 +70,7 @@ invoking_user() {
 cmd_install() {
     require_root "install"
     require_os
-    require_python_pyotp
+    require_python
 
     local user
     user="$(invoking_user)"
@@ -96,9 +95,9 @@ cmd_install() {
     chmod 755 "$INSTALL_DIR"
     ok "prepared $INSTALL_DIR"
 
-    # Generate seed.
+    # Generate seed using system CSPRNG (os.urandom). No pip packages.
     local secret
-    secret=$(python3 -c 'import pyotp; print(pyotp.random_base32())')
+    secret=$(python3 -c 'import base64, os; print(base64.b32encode(os.urandom(20)).decode())')
     printf '%s' "$secret" > "$SECRET_FILE"
     chown root:wheel "$SECRET_FILE" 2>/dev/null || chown root:root "$SECRET_FILE"
     chmod 600 "$SECRET_FILE"
@@ -154,19 +153,16 @@ EOF
     say "  $otpauth"
     say ""
 
-    if python3 -c "import qrcode" 2>/dev/null; then
+    if command -v qrencode >/dev/null 2>&1; then
         say "  scan this QR with your authenticator app:"
         say ""
-        OTPAUTH="$otpauth" python3 -c '
-import os, qrcode
-qr = qrcode.QRCode(border=1)
-qr.add_data(os.environ["OTPAUTH"])
-qr.make()
-qr.print_ascii(tty=False, invert=True)
-'
+        qrencode -t ANSIUTF8 "$otpauth"
     else
-        warn "python module 'qrcode' not installed — ASCII QR unavailable"
-        warn "install with: pip3 install qrcode (or paste the URL above manually)"
+        warn "qrencode not installed — terminal QR unavailable"
+        warn "paste the URL above into your authenticator manually,"
+        warn "or install qrencode for QR next time:"
+        warn "  macOS:  brew install qrencode"
+        warn "  Linux:  apt install qrencode (or your distro equivalent)"
     fi
 
     if [ "$(uname -s)" = "Darwin" ]; then

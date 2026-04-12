@@ -53,7 +53,7 @@
 #
 # Exit codes:
 #   0 — code valid (session written if --session was passed)
-#   1 — usage error, missing seed, missing pyotp, invalid --session path
+#   1 — usage error, missing seed, missing python3, invalid --session path
 #   2 — code invalid
 #   3 — locked out after too many consecutive failures (try later)
 #
@@ -63,6 +63,8 @@
 #   - The secret file (/etc/totp-presence/secret) is root:wheel 0600 and
 #     readable only by this script.
 #   - The 6-digit code is validated by shape before the secret is touched.
+#   - TOTP verification uses only Python standard library (hmac,
+#     hashlib, struct, base64, time). No pip dependencies.
 #   - The secret is passed to python via an env var, not argv, so it
 #     never appears in `ps`.
 
@@ -137,7 +139,7 @@ if [ "$SESSION_FLAG" = "--session" ]; then
     esac
 fi
 
-# -------- require seed and pyotp --------
+# -------- require seed and python3 --------
 
 if [ ! -f "$SECRET_FILE" ]; then
     echo "error: seed not found at $SECRET_FILE" >&2
@@ -145,9 +147,8 @@ if [ ! -f "$SECRET_FILE" ]; then
     exit 1
 fi
 
-if ! python3 -c "import pyotp" 2>/dev/null; then
-    echo "error: python module 'pyotp' is not installed" >&2
-    echo "       install with: pip3 install pyotp" >&2
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "error: python3 not found in PATH" >&2
     exit 1
 fi
 
@@ -198,10 +199,35 @@ fi
 
 SECRET=$(cat "$SECRET_FILE")
 
+# Inline TOTP verification using only Python standard library.
+# No pip dependencies. Implements RFC 6238 (TOTP) / RFC 4226 (HOTP).
+# The secret is passed via env var, not argv, so it never appears in `ps`.
 RESULT=$(SECRET="$SECRET" CODE="$CODE" python3 -c '
-import os, pyotp
-totp = pyotp.TOTP(os.environ["SECRET"])
-print("VALID" if totp.verify(os.environ["CODE"], valid_window=1) else "INVALID")
+import hmac, hashlib, struct, time, base64, os
+
+secret_b32 = os.environ["SECRET"]
+code = os.environ["CODE"]
+valid_window = 1
+
+try:
+    key = base64.b32decode(secret_b32, casefold=True)
+except Exception:
+    print("INVALID")
+    raise SystemExit(0)
+
+now = int(time.time())
+for offset in range(-valid_window, valid_window + 1):
+    counter = (now // 30) + offset
+    msg = struct.pack(">Q", counter)
+    digest = hmac.new(key, msg, hashlib.sha1).digest()
+    ob = digest[-1] & 0x0F
+    tr = struct.unpack(">I", digest[ob:ob + 4])[0] & 0x7FFFFFFF
+    expected = f"{tr % 1000000:06d}"
+    if hmac.compare_digest(expected, code):
+        print("VALID")
+        raise SystemExit(0)
+
+print("INVALID")
 ')
 
 unset SECRET
