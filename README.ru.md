@@ -139,10 +139,21 @@ JSON-сниппет из шага 2 в `~/.claude/settings.json`. Claude Code
 <!-- TODO: документировать EDIT_WRITE_CONFIG_ONLY:
 - новая опция в config: EDIT_WRITE_CONFIG_ONLY=true
 - selective mode: Edit/Write блокируются только для config-файлов
-  (settings.json, settings.local.json, .claude.json, CLAUDE.md)
+  (settings.json, settings.local.json, .claude.json, CLAUDE.md,
+  .claude/agents/*)
 - full mode (default): Edit/Write следуют обычной session check
-- пример matcher для selective: Edit|Write|mcp__peekaboo__.*|...
+- пример matcher для selective: Bash|Edit|Write|mcp__peekaboo__.*|...
 - пример matcher для full: .*
+-->
+<!-- TODO: документировать Bash guard (13.04.2026):
+- Bash добавляется в matcher, guard парсит tool_input.command
+- grep на конфиг-пути в command string
+- Ловит: прямые команды (echo, sed, cp), переменные, heredoc
+- НЕ ловит: base64, eval, git pull/merge, pipe chains
+- False positive: git commit -m с именем конфиг-файла
+- Защита agent identity files: .claude/agents/* в protected paths
+- Рекомендация: chflags/chown для paranoid mode
+- Три слоя: Claude Code built-in + TOTP Edit/Write + TOTP Bash
 -->
 
 <details>

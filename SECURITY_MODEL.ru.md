@@ -162,6 +162,27 @@ shell-скрипт.
 машины. Но это значит, что totp-presence — не защита от намеренного
 инсайдера.
 
+<!-- TODO: §5b. Bash tool bypass и обфускация (из red team 13.04.2026)
+
+Описать:
+- Bash добавлен в matcher guard.sh, command string проверяется grep'ом
+  на конфиг-пути. Прямые команды (echo >>, sed -i, cp) блокируются.
+- Known limitations hook-level:
+  * Обфускация: base64, eval, переменные — grep не видит
+  * git pull/merge — не содержит имя файла, но перезаписывает
+  * Pipe chains: cat file | tee config — первая команда безобидна
+  * False positives: git commit -m "упоминание CLAUDE.md" блокируется
+- Ядро (secret, session, config, verify, guard.sh) защищено root
+  ownership — обфускация не помогает, нужен sudo.
+- Filesystem-level hardening для конфиг-файлов агента:
+  chflags uchg (macOS) или chown root — полное покрытие, но
+  каждая легитимная правка требует sudo.
+- Threat model: hook = 80% (прямые команды LLM), filesystem = 100%.
+  Пользователь выбирает уровень.
+- Три слоя: встроенная защита Claude Code (Permission Allow/Deny
+  даже при bypassPermissions) + TOTP guard Edit/Write + TOTP guard Bash.
+-->
+
 ### §6. Манипуляция системным временем
 
 TOTP и проверка сессии зависят от системных часов. Если агент
