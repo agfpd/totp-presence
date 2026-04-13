@@ -153,6 +153,19 @@ try:
 except Exception:
     print("")
 ' 2>/dev/null) || TOOL_FILE_PATH=""
+    # For Bash tool: extract the command string to check for config paths.
+    TOOL_COMMAND=""
+    if [ "$TOOL_NAME" = "Bash" ]; then
+        TOOL_COMMAND=$(printf '%s' "$INPUT" | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    ti = data.get("tool_input", {})
+    print(ti.get("command", "") if isinstance(ti, dict) else "")
+except Exception:
+    print("")
+' 2>/dev/null) || TOOL_COMMAND=""
+    fi
 fi
 
 case "$TOOL_NAME" in
@@ -196,13 +209,30 @@ if [ "$EDIT_WRITE_CONFIG_ONLY" = "true" ]; then
             _IS_CONFIG=""
             if [ -n "$TOOL_FILE_PATH" ]; then
                 case "$TOOL_FILE_PATH" in
-                    */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md)
+                    */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md|*/.claude/agents/*)
                         _IS_CONFIG="1"
                         ;;
                 esac
             fi
             if [ -z "$_IS_CONFIG" ]; then
                 exit 0  # non-config Edit/Write — allow without session
+            fi
+            unset _IS_CONFIG
+            ;;
+        Bash)
+            # Bash commands can write to config files via echo, sed, cp,
+            # tee, etc. Check if the command string references any
+            # protected config path. This catches direct commands; it
+            # does NOT catch obfuscation (variables, eval, base64) —
+            # that requires filesystem-level protection (chflags/chown).
+            _IS_CONFIG=""
+            if [ -n "$TOOL_COMMAND" ]; then
+                if printf '%s' "$TOOL_COMMAND" | grep -qE '(settings\.json|settings\.local\.json|\.claude\.json|CLAUDE\.md|\.claude/agents/)'; then
+                    _IS_CONFIG="1"
+                fi
+            fi
+            if [ -z "$_IS_CONFIG" ]; then
+                exit 0  # non-config Bash — allow without session
             fi
             unset _IS_CONFIG
             ;;
@@ -258,14 +288,24 @@ fi
 #   settings.json, settings.local.json  — hook & permission config
 #   .claude.json                        — MCP server config
 #   CLAUDE.md                           — agent instructions
+#   .claude/agents/*                    — agent identity definitions
 
 IS_PROTECTED_PATH=""
 if [ -n "$TOOL_FILE_PATH" ]; then
     case "$TOOL_FILE_PATH" in
-        */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md)
+        */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md|*/.claude/agents/*)
             IS_PROTECTED_PATH="1"
             ;;
     esac
+fi
+# For Bash: check if the command string references config paths.
+# This catches direct shell writes (echo, sed, cp, tee, etc.) to
+# protected files. Does NOT catch obfuscation (variables, eval,
+# base64) — for that, use filesystem-level protection.
+if [ "$TOOL_NAME" = "Bash" ] && [ -n "$TOOL_COMMAND" ] && [ -z "$IS_PROTECTED_PATH" ]; then
+    if printf '%s' "$TOOL_COMMAND" | grep -qE '(settings\.json|settings\.local\.json|\.claude\.json|CLAUDE\.md|\.claude/agents/)'; then
+        IS_PROTECTED_PATH="1"
+    fi
 fi
 
 if [ -n "$IS_PROTECTED_PATH" ]; then
