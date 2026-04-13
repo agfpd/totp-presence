@@ -23,8 +23,8 @@
    доступа, изменение паролей.
 2. **Чувствительные операции** — SSH, GUI-автоматизация, установка
    софта, изменение системных настроек.
-3. **Правка конфигурации агента** — settings.json, CLAUDE.md,
-   .claude.json.
+3. **Правка конфигурации агента** — settings.json,
+   settings.local.json, .claude.json, CLAUDE.md, .claude/agents/*.
 4. **Сомнение в идентичности** — необычный тон, нетипичный запрос,
    долгий перерыв.
 
@@ -45,10 +45,19 @@ totp_verify("<код>", "<integration>")
 → { valid: true, session_opened: true }
 ```
 
-**Если MCP недоступен** — shell-команды:
+**Диагностика (что установлено, какие интеграции):**
+```
+totp_status()
+→ { core_installed: true, integrations: [...] }
+```
+
+**Если MCP недоступен** — shell-команды (работают только если
+Bash не заблокирован хуком):
 ```sh
-# Проверить сессию: если (сейчас - метка) < 1500 — открыта
-echo $(( $(date +%s) - $(cat /etc/totp-presence/<integration>-session) ))
+# Проверить сессию: сравнить возраст с окном из конфигурации
+cat /etc/totp-presence/<integration>-session     # метка времени
+cat /etc/totp-presence/<integration>-config      # WINDOW_SECONDS
+
 # Верифицировать код и открыть сессию
 sudo /etc/totp-presence/verify <код> --session /etc/totp-presence/<integration>-session
 ```
@@ -70,7 +79,7 @@ sudo /etc/totp-presence/verify <код> --session /etc/totp-presence/<integratio
 
 Если `totp_verify` вернул ошибку со словами «locked out» — ядро
 заблокировано после 5 неверных кодов на 5 минут. **Не повторяй** —
-повторы продлят блокировку. В тексте ошибки будет время до
+дождись окончания блокировки. В тексте ошибки будет время до
 разблокировки — скажи владельцу и подожди.
 
 ### Важно

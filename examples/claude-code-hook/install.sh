@@ -17,7 +17,7 @@
 # even in bypass-permissions mode — so there's no honest shortcut here.
 #
 # Usage:
-#   sudo ./examples/claude-code-hook/install.sh [--window-minutes N]
+#   sudo ./examples/claude-code-hook/install.sh [--window-minutes N] [--messaging-tools "tool1|tool2"]
 #   sudo ./examples/claude-code-hook/install.sh uninstall
 
 set -euo pipefail
@@ -32,6 +32,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARD_SRC="$SCRIPT_DIR/guard.sh"
 
 DEFAULT_WINDOW_MINUTES=25
+MESSAGING_TOOLS=""
 
 c_red()   { printf '\033[31m%s\033[0m' "$*"; }
 c_green() { printf '\033[32m%s\033[0m' "$*"; }
@@ -52,6 +53,7 @@ require_core() {
 
 cmd_install() {
     local window_minutes="$DEFAULT_WINDOW_MINUTES"
+    local messaging_tools="$MESSAGING_TOOLS"
     while [ $# -gt 0 ]; do
         case "$1" in
             --window-minutes)
@@ -60,6 +62,11 @@ cmd_install() {
                 [ -n "$window_minutes" ] || die "--window-minutes requires a value"
                 printf '%s' "$window_minutes" | grep -qE '^[0-9]+$' || die "--window-minutes must be a positive integer"
                 [ "$window_minutes" -gt 0 ] || die "--window-minutes must be > 0"
+                ;;
+            --messaging-tools)
+                shift
+                messaging_tools="${1:-}"
+                [ -n "$messaging_tools" ] || die "--messaging-tools requires a value (pipe-separated tool names)"
                 ;;
             *) die "unknown flag: $1" ;;
         esac
@@ -72,9 +79,30 @@ cmd_install() {
 
     local window_seconds=$(( window_minutes * 60 ))
 
+    # Preserve existing config values on reinstall.
+    # If --messaging-tools was not passed but config already has
+    # EXTRA_SAFE_TOOLS, keep the old value. Same for EDIT_WRITE_CONFIG_ONLY.
+    local existing_est=""
+    local existing_ewco=""
+    if [ -r "$CONFIG_FILE" ]; then
+        existing_est=$(grep -E '^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
+                       | head -1 \
+                       | sed -E 's/^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//')
+        existing_ewco=$(grep -E '^[[:space:]]*EDIT_WRITE_CONFIG_ONLY[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
+                       | head -1 \
+                       | sed -E 's/^[[:space:]]*EDIT_WRITE_CONFIG_ONLY[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//')
+    fi
+    if [ -z "$messaging_tools" ] && [ -n "$existing_est" ]; then
+        messaging_tools="$existing_est"
+    fi
+    local edit_write_config_only="${existing_ewco:-}"
+
     say ""
     say "$(c_bold 'claude-code-hook install')"
     say "  window:    ${window_minutes} min (${window_seconds} s)"
+    if [ -n "$messaging_tools" ]; then
+        say "  messaging: ${messaging_tools}"
+    fi
     say ""
 
     # Install guard hook.
@@ -97,9 +125,21 @@ cmd_install() {
 # be ignored in normal operation and become a latent code-execution
 # hazard if this file ever became writable by a non-root user.
 #
-# Edited only via: sudo ./examples/claude-code-hook/install.sh --window-minutes N
+# Edited only via: sudo ./examples/claude-code-hook/install.sh [flags]
 WINDOW_SECONDS=$window_seconds
 EOF
+    # Append optional settings only when they have values.
+    # This keeps a clean default config for simple installations.
+    if [ -n "$messaging_tools" ]; then
+        cat >> "$CONFIG_FILE" <<EOF
+EXTRA_SAFE_TOOLS=$messaging_tools
+EOF
+    fi
+    if [ -n "$edit_write_config_only" ]; then
+        cat >> "$CONFIG_FILE" <<EOF
+EDIT_WRITE_CONFIG_ONLY=$edit_write_config_only
+EOF
+    fi
     chown root:wheel "$CONFIG_FILE" 2>/dev/null || chown root:root "$CONFIG_FILE"
     chmod 644 "$CONFIG_FILE"
     ok "wrote $CONFIG_FILE (WINDOW_SECONDS=$window_seconds)"
@@ -135,6 +175,22 @@ EOF
     say ""
     say "  Claude Code will prompt you to approve the edit before saving."
     say ""
+    if [ -n "$messaging_tools" ]; then
+        say "$(c_bold 'Messaging tools (EXTRA_SAFE_TOOLS):')"
+        say "  The following tools are allowed without a session so the agent"
+        say "  can ask you for a TOTP code:"
+        say "    $messaging_tools"
+        say ""
+    else
+        say "$(c_yellow 'Headless agent? (Telegram, Slack, etc.)')"
+        say "  If your agent communicates through a messaging channel, it needs"
+        say "  the messaging tool unblocked — otherwise it cannot ask for a code"
+        say "  and will deadlock. Re-run with:"
+        say "    sudo $0 --messaging-tools \"mcp__plugin_telegram_telegram__reply\""
+        say "  Or edit /etc/totp-presence/claude-code-config directly (sudo):"
+        say "    EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply"
+        say ""
+    fi
     say "$(c_bold 'How the agent opens a session when it is blocked:')"
     say "  Ask the human for a TOTP code, then:"
     say "    sudo /etc/totp-presence/verify 123456 --session $SESSION_FILE"
@@ -163,8 +219,14 @@ usage() {
 claude-code-hook — reference totp-presence integration for Claude Code
 
 Usage:
-  sudo $0 [install] [--window-minutes N]
+  sudo $0 [install] [--window-minutes N] [--messaging-tools "tool1|tool2"]
   sudo $0 uninstall
+
+Options:
+  --window-minutes N          Session window in minutes (default: 25)
+  --messaging-tools "tools"   Pipe-separated tool names to allow without
+                              a session (e.g. Telegram reply tool). Required
+                              for headless agents using matcher ".*".
 
 The core must be installed first: sudo ./core/setup.sh install
 EOF
