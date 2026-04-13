@@ -1,5 +1,5 @@
 {
-  "_comment": "Snippet for Claude Code ~/.claude/settings.json. Merge the hooks.PreToolUse entry below into your config. The matcher is '.*' by design (fail-safe default): every tool call arrives at guard.sh, which short-circuits an internal stable list of unambiguously read-only tools (Read, Glob, Grep, LS, TodoWrite, WebSearch) and requires a fresh TOTP session for everything else. This protects new or custom tools by default. To change policy, edit the read-only exit list at the top of /etc/totp-presence/claude-code-guard.sh.",
+  "_comment": "Snippet for Claude Code ~/.claude/settings.json. Merge the hooks.PreToolUse entry below into your config. The matcher is '.*' by design (fail-safe default): every tool call arrives at guard.sh, which short-circuits an internal stable list of unambiguously read-only tools (Read, Glob, Grep, LS, TodoWrite, WebSearch, ToolSearch) and requires a fresh TOTP session for everything else. This protects new or custom tools by default. To change policy, edit the read-only exit list at the top of /etc/totp-presence/claude-code-guard.sh.",
   "hooks": {
     "PreToolUse": [
       {

@@ -158,14 +158,14 @@ JSON-сниппет из шага 2 в `~/.claude/settings.json`. Claude Code
 - **Если агент работает через Telegram, Slack или другой внешний
   канал** — messaging-инструмент нужно разрешить без сессии, иначе
   агент не сможет ни ответить, ни попросить код. См.
-  [claude-code-hook/README](./examples/claude-code-hook/),
+  [claude-code-hook/README.ru.md](./examples/claude-code-hook/README.ru.md),
   секция «Каналы связи».
 - **Выборочная блокировка** — альтернатива полной. Защищает только
   указанные инструменты, остальные работают свободно. Меньше
   трения, но новые инструменты не защищены автоматически.
 
 Подробности обоих режимов —
-[examples/claude-code-hook/README.ru.md](./examples/claude-code-hook/).
+[examples/claude-code-hook/README.ru.md](./examples/claude-code-hook/README.ru.md).
 
 <details>
 <summary>macOS + Apple Passwords</summary>
@@ -331,14 +331,10 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 - [x] Soft-prompt интеграция
 - [x] [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md)
 - [x] [CLAUDE.ru.md](./CLAUDE.ru.md)
-- [ ] Английские версии всех документов (сейчас только русские)
-- [ ] Обкатка MCP-сервера в Claude Desktop / Cursor / Continue
-- [ ] Generic bash wrapper для самописных скриптов
 - [ ] Claude Code plugin package
 - [ ] Тестирование установки на Linux
 - [ ] Per-user файлы сессий для multi-user машин
 - [ ] Уведомление до окончания окна сессии
-- [ ] Статьи для Simon Willison / Anthropic Community / Хабр / Dev.to
 
 ---
 

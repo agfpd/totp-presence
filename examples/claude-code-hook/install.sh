@@ -175,7 +175,7 @@ EOF
     say "  The matcher is '.*' by design: fail-safe default. Every tool call"
     say "  arrives at the hook, which short-circuits an internal stable list"
     say "  of unambiguously read-only tools (Read, Glob, Grep, LS, TodoWrite,"
-    say "  WebSearch) and requires a fresh TOTP session for everything else."
+    say "  WebSearch, ToolSearch) and requires a fresh TOTP session for everything else."
     say "  New or custom tools are protected by default, not by mistake left"
     say "  unprotected."
     say ""
