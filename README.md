@@ -37,6 +37,40 @@ Three different attacks — one root vulnerability:
 
 In all cases the agent trusts the channel because it has no other basis.
 
+## Why the built-in permission prompt is not enough
+
+Agent systems like Claude Code already ask "Allow / Deny" before
+sensitive actions. Isn't that sufficient?
+
+The permission prompt verifies that **someone** is at the keyboard. It
+does not verify **who**. An open terminal, a hijacked SSH session, a
+colleague, a child — anyone with physical or remote access to the
+session can click Allow.
+
+This is the same channel-trust problem described above: the prompt
+trusts the channel ("there is a human at this terminal") and takes on
+faith that the human is the owner.
+
+TOTP closes this gap. A valid code can only come from the person
+holding the authenticator — the phone with the secret key. No
+physical access to the machine substitutes for it.
+
+Three additional scenarios where the permission prompt does not apply
+at all:
+
+- **Autonomous / headless agents** — agents launched via `--agent`,
+  `launchd`, `cron`, or CI. There is no terminal, no one to click
+  Allow. Tools execute without confirmation.
+- **Allowlisted tools** — when the user opts out of per-call prompts
+  for frequently used tools (Bash, Write, Edit). After that, those
+  tools run without any confirmation — including under injection.
+- **Non-Claude-Code clients** — Cursor, Continue, Claude Desktop, and
+  other MCP clients may have a different permission model or none.
+
+`totp-presence` works in all of these cases because it operates at a
+different layer: not "was a button clicked" but "does the person know
+a secret that only the owner's phone can produce."
+
 ## Solution
 
 `totp-presence` adds a second, independent verification channel —
@@ -75,6 +109,14 @@ A session is a record with a timestamp in a file on disk, protected
 by root permissions. It states: "the owner confirmed their presence at
 time T." The agent compares T to the current time and decides whether
 the confirmation is recent enough.
+
+> **Important limitation:** an open session confirms *presence*, not
+> *consent to a specific action*. If a session is open for 25 minutes,
+> any action within that window proceeds without a new code — including
+> actions triggered by injection. Mitigations: keep the window short,
+> use the built-in config-file protection (120 s window), and add
+> prompt-level rules for irreversible actions. Full analysis —
+> [SECURITY_MODEL.md, §3](./SECURITY_MODEL.md#3-session-reuse--not-confirmation-of-a-specific-action).
 
 ### Two modes of operation
 
@@ -265,9 +307,9 @@ A brief honesty section. Full version —
   do not fire.
 - **Not a universal lock.** Protects only what a specific integration
   has placed a check on.
-- **Not confirmation of a specific action.** An open session says
-  "the owner provided a code recently," not "the owner approved this
-  particular action."
+- **Not confirmation of a specific action.** Presence ≠ consent —
+  see the callout in ["What it looks like in practice"](#what-it-looks-like-in-practice)
+  and [SECURITY_MODEL.md, §3](./SECURITY_MODEL.md).
 - **Not magic.** Kerckhoffs's principle: the secret key is the only
   thing that is private. The project code is open and must remain
   secure under this condition.
