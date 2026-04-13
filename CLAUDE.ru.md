@@ -120,11 +120,12 @@ pip3 install fastmcp
 с ошибкой PEP 668. Решение: `pip3 install --break-system-packages
 fastmcp` или `pipx install fastmcp`.
 
-Добавь запись в конфиг MCP-серверов. Есть два места:
+Добавь запись в конфиг MCP-серверов. **Спроси человека** куда
+добавить — есть два места:
 - `~/.claude.json` — глобально для всех проектов
-- `.mcp.json` в корне проекта — только для этого проекта
+- `.mcp.json` в корне проекта целевого агента — только для него
 
-Формат и примеры — в
+Не выбирай сам — это решение пользователя. Формат и примеры — в
 [examples/mcp-server/README.ru.md](./examples/mcp-server/README.ru.md).
 sudo не нужен. После перезапуска Claude Code у агента появятся
 инструменты `mcp__totp-presence__totp_verify`,
@@ -134,10 +135,10 @@ sudo не нужен. После перезапуска Claude Code у аген�
 ### Шаг 5. Добавь soft-prompt
 
 Открой [examples/soft-prompt/prompt.md](./examples/soft-prompt/prompt.md),
-замени `<integration>` на имя интеграции (например `claude-code`),
-скопируй блок в CLAUDE.md агента, который будет использовать
-totp-presence. Если это тот же агент, в чьём CLAUDE.md ты сейчас
-работаешь — добавь туда. Если другой — в его CLAUDE.md.
+замени `<integration>` на имя интеграции (например `claude-code`).
+**Спроси человека** в чей CLAUDE.md добавить блок — текущего агента
+(если он и будет использовать totp-presence) или другого. Не
+копируй молча в первый попавшийся файл.
 
 Это даёт агенту правила: когда проверять сессию, как принимать
 коды, чего не делать.
@@ -218,7 +219,7 @@ sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_teleg
 EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react
 ```
 
-4. **Куда добавить сниппет?**
+4. **Куда добавить сниппет? Спроси человека.**
    - **Проектный** `<проект>/.claude/settings.json` — только для
      этого агента.
    - **Глобальный** `~/.claude/settings.json` — для всех проектов.
