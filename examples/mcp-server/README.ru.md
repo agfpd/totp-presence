@@ -1,3 +1,5 @@
+English version: [README.md](./README.md)
+
 # mcp-server — MCP-интеграция для totp-presence
 
 MCP-сервер (Model Context Protocol), который даёт агенту инструменты

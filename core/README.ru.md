@@ -1,3 +1,5 @@
+English version: [README.md](./README.md)
+
 # core — верификационный примитив totp-presence
 
 Ядро проекта. Делает одну вещь: отвечает на вопрос «это правильный

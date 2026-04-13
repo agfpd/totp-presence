@@ -1,3 +1,5 @@
+English version: [CLAUDE.md](./CLAUDE.md)
+
 # totp-presence — инструкции проекта
 
 Этот файл читается Claude Code при открытии репозитория.
@@ -18,7 +20,7 @@
 
 Если человек просит установить totp-presence — следуй этой
 инструкции. Правила поведения после установки описаны в
-[examples/soft-prompt/prompt.md](./examples/soft-prompt/prompt.md) —
+[examples/soft-prompt/prompt.ru.md](./examples/soft-prompt/prompt.ru.md) —
 они копируются в CLAUDE.md или system prompt агента.
 
 **Перед началом предупреди человека.** Ты не можешь выполнять
@@ -134,7 +136,7 @@ sudo не нужен. После перезапуска Claude Code у аген�
 
 ### Шаг 5. Добавь soft-prompt
 
-Открой [examples/soft-prompt/prompt.md](./examples/soft-prompt/prompt.md),
+Открой [examples/soft-prompt/prompt.ru.md](./examples/soft-prompt/prompt.ru.md),
 замени `<integration>` на имя интеграции (например `claude-code`).
 **Спроси человека** в чей CLAUDE.md добавить блок — текущего агента
 (если он и будет использовать totp-presence) или другого. Не

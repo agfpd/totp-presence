@@ -1,3 +1,5 @@
+English version: [README.md](./README.md)
+
 # claude-code-hook — интеграция для Claude Code
 
 Блокировка инструментов в Claude Code через `PreToolUse`-хук.
