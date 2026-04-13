@@ -242,7 +242,9 @@ fi
 # -------- helper: emit deny --------
 
 emit_deny() {
-    REASON="$1" python3 -c '
+    local reason="$1"
+    local output
+    output=$(REASON="$reason" python3 -c '
 import json, os
 out = {
     "hookSpecificOutput": {
@@ -252,7 +254,17 @@ out = {
     }
 }
 print(json.dumps(out, ensure_ascii=False))
-'
+' 2>/dev/null) || true
+
+    if [ -n "$output" ]; then
+        printf '%s\n' "$output"
+    else
+        # Fallback if python3 is unavailable or crashed.
+        # Emit valid deny JSON without python3. Reason is not
+        # escaped — but a malformed reason is better than silently
+        # allowing the tool call through.
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TOTP verification required (python3 unavailable for detailed message)"}}\n'
+    fi
 }
 
 # -------- session read (shared by both checks below) --------

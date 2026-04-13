@@ -71,9 +71,15 @@ set -u
 # mkdir is atomic on all POSIX systems (macOS + Linux). Ensures
 # brute-force counter cannot be bypassed by parallel forks.
 LOCK_DIR="/etc/totp-presence/.verify-lock"
+LOCK_TIMEOUT=30  # seconds — avoid infinite wait on stale lock (SIGKILL, OOM)
 cleanup_lock() { rmdir "$LOCK_DIR" 2>/dev/null; }
 trap cleanup_lock EXIT
+_lock_start=$(date +%s)
 while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    if [ $(( $(date +%s) - _lock_start )) -ge "$LOCK_TIMEOUT" ]; then
+        echo "error: lock acquisition timed out after ${LOCK_TIMEOUT}s (stale lock at $LOCK_DIR?). Remove manually: sudo rmdir $LOCK_DIR" >&2
+        exit 1
+    fi
     sleep 0.05
 done
 
@@ -252,8 +258,8 @@ if [ "$RESULT" != "VALID" ]; then
     chmod 644 "$FAIL_COUNTER_FILE"
 
     if [ "$NEW_COUNT" -ge "$MAX_FAILS" ]; then
-        echo "invalid — locked out for $LOCKOUT_SECONDS seconds after $NEW_COUNT consecutive failures" >&2
-        exit 2
+        echo "locked out for $LOCKOUT_SECONDS seconds after $NEW_COUNT consecutive failures" >&2
+        exit 3
     fi
     echo "invalid" >&2
     exit 2

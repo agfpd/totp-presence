@@ -67,6 +67,12 @@ cmd_install() {
                 shift
                 messaging_tools="${1:-}"
                 [ -n "$messaging_tools" ] || die "--messaging-tools requires a value (pipe-separated tool names)"
+                # Validate: each pipe-separated element must be a valid tool name
+                # (alphanumeric, underscores, no regex metacharacters).
+                # This prevents accidental regex injection into guard.sh's grep -E.
+                if ! printf '%s' "$messaging_tools" | grep -qE '^[a-zA-Z0-9_]+(\|[a-zA-Z0-9_]+)*$'; then
+                    die "--messaging-tools: each tool name must match [a-zA-Z0-9_], separated by |. Got: $messaging_tools"
+                fi
                 ;;
             *) die "unknown flag: $1" ;;
         esac

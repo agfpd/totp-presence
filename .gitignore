@@ -1,7 +1,3 @@
-# Never commit the secret or session — these are per-host, generated at setup.
-.totp_secret
-.totp_session
-
 # macOS
 .DS_Store
 
