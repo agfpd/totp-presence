@@ -5,7 +5,8 @@ Russian version: [README.ru.md](./README.ru.md)
 > How an agent can know it is talking to its owner — and not to
 > text that impersonates them.
 
-**Platforms:** macOS, Linux, Windows via WSL.
+**Platforms:** macOS, Linux natively. Windows via WSL (the Unix
+permission model is fundamental to the security design).
 
 ## The problem: identity in text-based channels
 
@@ -266,9 +267,10 @@ and rejection response format:
   headless agents.
 - **[mcp-server](./examples/mcp-server/)** — an MCP server
   (Model Context Protocol) with three tools: check session, verify
-  code, show status. Works in any MCP client (Claude Code, Claude
-  Desktop, Cursor, Continue). The agent invokes checks when it deems
-  necessary.
+  code, show status. Works in **any** MCP client — Claude Code, Claude
+  Desktop, Cursor, Continue, or any future client that supports MCP.
+  This is the primary cross-platform integration: no hooks or
+  client-specific code required.
 - **[soft-prompt](./examples/soft-prompt/)** — text instructions for
   the agent + MCP tools. The prompt tells the agent *when* to verify
   (before dangerous actions, when in doubt), MCP provides *the means*.
@@ -371,8 +373,9 @@ closed off by a retroactive patent.
 
 ## Status and Roadmap
 
-The pattern has been battle-tested on the author's production agents;
-the codebase is being prepared for its first public release.
+The pattern is in daily use on the author's production agents
+(three Claude Code instances, full install-to-production cycle).
+The codebase is being prepared for its first public release.
 
 - [x] Core: verify, setup, sudoers
 - [x] Claude Code hook integration
@@ -380,8 +383,11 @@ the codebase is being prepared for its first public release.
 - [x] Soft-prompt integration
 - [x] [SECURITY_MODEL.md](./SECURITY_MODEL.md)
 - [x] [CLAUDE.md](./CLAUDE.md)
+- [ ] Test suite (bats) for core and hook
+- [ ] Demo recording (asciinema / gif)
 - [ ] Claude Code plugin package
 - [ ] Installation testing on Linux
+- [ ] Native Windows support (PowerShell + DPAPI)
 - [ ] Per-user session files for multi-user machines
 - [ ] Notification before session window expiry
 
