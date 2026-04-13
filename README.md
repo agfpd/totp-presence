@@ -129,7 +129,7 @@ a JSON snippet for the hook — **do not add the snippet yet**.
   "mcpServers": {
     "totp-presence": {
       "command": "python3",
-      "args": ["<full-path>/examples/mcp-server/server.py"]
+      "args": ["/absolute/path/to/examples/mcp-server/server.py"]
     }
   }
 }

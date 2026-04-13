@@ -15,7 +15,7 @@ agent systems — lives **outside the core**, in `examples/`.
 core/
 ├── setup.sh         — core installer (run via sudo)
 ├── verify.sh        — verifier
-└── README.ru.md     — this file
+└── README.md        — this file
 ```
 
 After installation (`sudo ./core/setup.sh install`) the following

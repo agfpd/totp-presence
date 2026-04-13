@@ -211,7 +211,7 @@ EOF
     say ""
     say "    sudo ./examples/claude-code-hook/install.sh"
     say ""
-    say "  Or write your own — see core/README.ru.md for the API contract."
+    say "  Or write your own — see core/README.md for the API contract."
     say ""
 }
 

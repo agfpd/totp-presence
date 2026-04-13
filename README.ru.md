@@ -129,7 +129,7 @@ JSON-сниппет для хука — **добавлять сниппет по
   "mcpServers": {
     "totp-presence": {
       "command": "python3",
-      "args": ["<полный-путь>/examples/mcp-server/server.py"]
+      "args": ["/абсолютный/путь/до/examples/mcp-server/server.py"]
     }
   }
 }
