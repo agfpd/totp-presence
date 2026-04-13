@@ -52,9 +52,10 @@ This is the same channel-trust problem described above: the prompt
 trusts the channel ("there is a human at this terminal") and takes on
 faith that the human is the owner.
 
-TOTP closes this gap. A valid code can only come from the person
-holding the authenticator — the phone with the secret key. No
-physical access to the machine substitutes for it.
+TOTP closes this gap. A valid code requires possession of the device
+holding the secret — something text injection fundamentally cannot
+acquire. Physical access to the agent's machine is not enough on its
+own — the secret lives on a separate device.
 
 Three additional scenarios where the permission prompt does not apply
 at all:
