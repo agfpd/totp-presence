@@ -192,9 +192,9 @@ EOF
         say "  If your agent communicates through a messaging channel, it needs"
         say "  the messaging tool unblocked — otherwise it cannot ask for a code"
         say "  and will deadlock. Re-run with:"
-        say "    sudo $0 --messaging-tools \"mcp__plugin_telegram_telegram__reply\""
+        say "    sudo $0 --messaging-tools \"mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment\""
         say "  Or edit /etc/totp-presence/claude-code-config directly (sudo):"
-        say "    EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply"
+        say "    EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|..."
         say ""
     fi
     say "$(c_bold 'How the agent opens a session when it is blocked:')"

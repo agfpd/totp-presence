@@ -32,7 +32,7 @@ sudo ./examples/claude-code-hook/install.sh
 # или с другим окном сессии:
 sudo ./examples/claude-code-hook/install.sh --window-minutes 15
 # для агентов без терминала (Telegram и др.):
-sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply"
+sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
 ```
 
 Установщик:
@@ -75,7 +75,7 @@ sudo /etc/totp-presence/verify 123456 --session /etc/totp-presence/claude-code-s
 проверки короткий список безопасных инструментов:
 
 ```
-Read | Glob | Grep | LS | TodoWrite | WebSearch | mcp__totp-presence__*
+Read | Glob | Grep | LS | TodoWrite | WebSearch | ToolSearch | mcp__totp-presence__*
 ```
 
 Всё остальное требует открытой сессии:
@@ -128,13 +128,13 @@ Slack), messaging-инструмент нужно разрешить без се
 агент не сможет попросить код. Задаётся при установке:
 
 ```sh
-sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply"
+sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
 ```
 
 Или вручную в `/etc/totp-presence/claude-code-config` (sudo):
 
 ```
-EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply
+EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment
 ```
 
 Несколько инструментов через `|`.

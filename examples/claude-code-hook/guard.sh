@@ -164,9 +164,10 @@ except Exception:
 fi
 
 case "$TOOL_NAME" in
-    Read|Glob|Grep|LS|TodoWrite|WebSearch)
+    Read|Glob|Grep|LS|TodoWrite|WebSearch|ToolSearch)
         # Unambiguously read-only or agent-local (TodoWrite touches
         # only the agent's in-session todo list, never disk state).
+        # ToolSearch loads deferred tool schemas — pure read, no side effects.
         exit 0
         ;;
     mcp__totp-presence__*)

@@ -40,7 +40,7 @@ sudo ./examples/claude-code-hook/install.sh
 sudo ./examples/claude-code-hook/install.sh --window-minutes 15
 
 # Шаг 6, если агент работает через Telegram/Slack:
-sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply"
+sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
 ```
 
 **Что потребуется от человека помимо пароля:**
@@ -182,7 +182,7 @@ read-only инструменты и MCP-инструменты totp-presence. В
 
 Безопасные инструменты (пропускаются без сессии):
 - Встроенные read-only: `Read`, `Glob`, `Grep`, `LS`,
-  `TodoWrite`, `WebSearch`
+  `TodoWrite`, `WebSearch`, `ToolSearch`
 - MCP-инструменты totp-presence: `mcp__totp-presence__*`
 - Каналы связи: настраиваются через `EXTRA_SAFE_TOOLS`
   в конфигурации (см. ниже)
@@ -212,11 +212,11 @@ read-only инструменты и MCP-инструменты totp-presence. В
    сможет попросить код и заблокируется. Спроси какой канал
    используется и задай при установке:
 ```sh
-sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react"
+sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
 ```
    Или вручную в `/etc/totp-presence/claude-code-config` (sudo):
 ```
-EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react
+EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment
 ```
 
 4. **Куда добавить сниппет? Спроси человека.**
