@@ -93,10 +93,10 @@ cmd_install() {
     if [ -r "$CONFIG_FILE" ]; then
         existing_est=$(grep -E '^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
                        | head -1 \
-                       | sed -E 's/^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//')
+                       | sed -E 's/^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//') || true
         existing_ewco=$(grep -E '^[[:space:]]*EDIT_WRITE_CONFIG_ONLY[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
                        | head -1 \
-                       | sed -E 's/^[[:space:]]*EDIT_WRITE_CONFIG_ONLY[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//')
+                       | sed -E 's/^[[:space:]]*EDIT_WRITE_CONFIG_ONLY[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//') || true
     fi
     if [ -z "$messaging_tools" ] && [ -n "$existing_est" ]; then
         messaging_tools="$existing_est"
