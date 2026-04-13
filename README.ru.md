@@ -354,9 +354,17 @@ GUI-автоматизацию, SSH, работу с паролями — сли
 
 ## Prior art
 
-Prior-art поиск (апрель 2026) не нашёл описания этого паттерна
-ранее. Смежные работы:
+Prior-art поиск (апрель 2026) не нашёл описания этого точного
+паттерна ранее. Смежные работы:
 
+- **[IBM + Auth0 + Yubico, RSAC 2026](https://www.ibm.com/new/announcements/securing-agentic-ai-why-automation-still-needs-human-oversight)** —
+  «Human-in-the-Loop authorization framework» для agentic AI.
+  Та же идея: криптографическое доказательство присутствия человека
+  перед высокорисковыми действиями агента. Их подход enterprise-
+  уровня (watsonx.ai + CIBA + аппаратный ключ YubiKey, подтверждение
+  на каждое действие). `totp-presence` решает ту же задачу для
+  индивидуальных разработчиков: ноль зависимостей, любой агент,
+  любой MCP-клиент.
 - **[Checkmarx Zero, 2025](https://checkmarx.com/zero-post/turning-ai-safeguards-into-weapons-with-hitl-dialog-forging/)** —
   «Lies-in-the-Loop / HITL Dialog Forging» ставит проблему, говорит
   «no silver bullet», решения не даёт. Этот репозиторий — возможный

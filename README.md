@@ -356,8 +356,15 @@ This repository extracts a working solution into a reusable form.
 ## Prior art
 
 A prior-art search (April 2026) found no earlier description of this
-pattern. Related work:
+exact pattern. Related work:
 
+- **[IBM + Auth0 + Yubico, RSAC 2026](https://www.ibm.com/new/announcements/securing-agentic-ai-why-automation-still-needs-human-oversight)** —
+  "Human-in-the-Loop authorization framework" for agentic AI.
+  Same core idea: cryptographic proof of human presence before
+  high-risk agent actions. Their approach is enterprise-grade
+  (watsonx.ai + CIBA + YubiKey hardware key, per-action consent).
+  `totp-presence` solves the same problem for individual developers:
+  zero dependencies, any agent, any MCP client.
 - **[Checkmarx Zero, 2025](https://checkmarx.com/zero-post/turning-ai-safeguards-into-weapons-with-hitl-dialog-forging/)** —
   "Lies-in-the-Loop / HITL Dialog Forging" identifies the problem,
   says "no silver bullet," offers no solution. This repository is a
