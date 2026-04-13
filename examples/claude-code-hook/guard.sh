@@ -128,44 +128,39 @@ fi
 
 TOOL_NAME=""
 TOOL_FILE_PATH=""
+TOOL_COMMAND=""
 if [ -n "$INPUT" ]; then
-    # Parse JSON without eval: Python writes values on separate lines,
-    # bash reads them with `read`. No shell interpretation of data.
+    # Parse all needed fields from JSON in a single python3 invocation.
+    # Output: three lines — tool_name, file_path, command — read by bash.
+    # Single process instead of 2-3 separate ones saves ~100ms per call.
     #
     # Previous approach used NUL-separated output with ${PARSED#*$'\0'}
     # but bash 3.2 (macOS default) chokes on $'\0' inside ${...}
     # parameter expansion — TOOL_FILE_PATH was silently empty, breaking
-    # config path protection entirely.
-    TOOL_NAME=$(printf '%s' "$INPUT" | python3 -c '
+    # config path protection entirely. Lines with read -r are safe.
+    _PARSED=$(printf '%s' "$INPUT" | python3 -c '
 import sys, json
 try:
     data = json.load(sys.stdin)
+    ti = data.get("tool_input", {})
+    if not isinstance(ti, dict):
+        ti = {}
     print(data.get("tool_name", ""))
+    print(ti.get("file_path", ""))
+    print(ti.get("command", ""))
 except Exception:
     print("")
-' 2>/dev/null) || TOOL_NAME=""
-    TOOL_FILE_PATH=$(printf '%s' "$INPUT" | python3 -c '
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    ti = data.get("tool_input", {})
-    print(ti.get("file_path", "") if isinstance(ti, dict) else "")
-except Exception:
     print("")
-' 2>/dev/null) || TOOL_FILE_PATH=""
-    # For Bash tool: extract the command string to check for config paths.
-    TOOL_COMMAND=""
-    if [ "$TOOL_NAME" = "Bash" ]; then
-        TOOL_COMMAND=$(printf '%s' "$INPUT" | python3 -c '
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    ti = data.get("tool_input", {})
-    print(ti.get("command", "") if isinstance(ti, dict) else "")
-except Exception:
     print("")
-' 2>/dev/null) || TOOL_COMMAND=""
+' 2>/dev/null) || _PARSED=""
+    if [ -n "$_PARSED" ]; then
+        TOOL_NAME=$(printf '%s' "$_PARSED" | sed -n '1p')
+        TOOL_FILE_PATH=$(printf '%s' "$_PARSED" | sed -n '2p')
+        # command only matters for Bash tool — read it unconditionally
+        # (cheap) but only use it in the Bash branch below.
+        TOOL_COMMAND=$(printf '%s' "$_PARSED" | sed -n '3p')
     fi
+    unset _PARSED
 fi
 
 case "$TOOL_NAME" in

@@ -80,7 +80,7 @@ Continue — всё, что умеет запускать stdio MCP-сервер
 2. Хотя бы одна интеграция с файлами сессии (например
    `sudo ./examples/claude-code-hook/install.sh` создаёт
    `claude-code-session` и `claude-code-config`)
-3. Python 3.10+ и FastMCP:
+3. Python 3.9+ и FastMCP:
    ```sh
    pip3 install fastmcp
    ```

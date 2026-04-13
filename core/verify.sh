@@ -27,26 +27,15 @@
 #   invalid codes, verify is locked out for LOCKOUT_SECONDS. A
 #   successful verification clears the counter.
 #
-#   Important caveat: this counter is rate-limiting, not a hard
-#   lock. The read-check-verify-write sequence is NOT serialized,
-#   so a parallel attacker forking N concurrent verify calls
-#   through the NOPASSWD sudoers rule reads the same pre-check
-#   counter N times and bypasses the threshold for that round.
+#   To prevent parallel brute-force, verify acquires an exclusive
+#   lock (atomic mkdir) at startup, serializing all concurrent
+#   calls. This makes the counter reliable regardless of
+#   parallelism: expected time-to-break of a 6-digit code is on
+#   the order of years (~MAX_FAILS attempts per LOCKOUT_SECONDS).
 #
-#   Concretely:
-#   - Against a serial attacker, the counter rate-limits to
-#     ~MAX_FAILS attempts per LOCKOUT_SECONDS window. Expected
-#     time-to-break of a 6-digit code is on the order of years.
-#   - Against a parallel attacker (~100 concurrent forks per
-#     round, one round per LOCKOUT_SECONDS), with valid_window=1
-#     giving 3 valid codes out of 10^6 at any instant, expected
-#     time-to-break drops to roughly two weeks of uninterrupted
-#     brute-force.
-#
-#   To close this gap, verify acquires an exclusive lock (atomic
-#   mkdir) at startup, serializing all concurrent calls. This
-#   makes the counter reliable regardless of parallelism, keeping
-#   the "years" floor intact.
+#   Without serialization, a parallel attacker forking N concurrent
+#   calls would read the same counter N times and bypass the
+#   threshold. The lock closes this gap.
 #
 # Exit codes:
 #   0 — code valid (session written if --session was passed)

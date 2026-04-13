@@ -111,7 +111,7 @@ sudo ./core/setup.sh install
 sudo ./examples/claude-code-hook/install.sh
 
 # 3. MCP-сервер — инструменты проверки для агента
-pip3 install fastmcp
+pip3 install fastmcp  # macOS Homebrew: pip3 install --break-system-packages fastmcp
 
 # 4. Soft-prompt — инструкции агенту когда проверять
 # Скопировать блок из examples/soft-prompt/prompt.md в CLAUDE.md
