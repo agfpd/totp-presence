@@ -148,7 +148,7 @@ Desktop, Cursor, Continue.
 > который нужно отсканировать сразу.
 
 ```sh
-git clone <url-этого-репозитория>
+git clone https://github.com/agfpd/totp-presence.git
 cd totp-presence
 
 # 1. Ядро — секретный ключ + верификатор (покажет QR — сканируй)

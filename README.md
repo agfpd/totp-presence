@@ -147,7 +147,7 @@ Either mode can be used alone or both together.
 > a QR code that needs to be scanned immediately.
 
 ```sh
-git clone <this-repo-url>
+git clone https://github.com/agfpd/totp-presence.git
 cd totp-presence
 
 # 1. Core — secret key + verifier (displays QR — scan it)
