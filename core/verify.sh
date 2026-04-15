@@ -54,6 +54,14 @@
 #   - The secret is passed to python via an env var, not argv, so it
 #     never appears in `ps`.
 
+# -------- sane PATH --------
+# When invoked via `sudo -n` with a sudoers rule that does not preserve
+# secure_path, PATH can be empty or minimal. Ensure core utilities like
+# chown, chmod, date are found on both macOS (chown in /usr/sbin) and
+# Linux (chown in /usr/bin). Observed failure: `chown: command not
+# found` at line 246/271, session write silently degraded.
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+
 set -u
 
 # -------- serialize concurrent calls --------
