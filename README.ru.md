@@ -161,7 +161,11 @@ sudo ./examples/claude-code-hook/install.sh
 pip3 install fastmcp  # macOS Homebrew: pip3 install --break-system-packages fastmcp
 
 # 4. Soft-prompt — инструкции агенту когда проверять
-# Скопировать блок из examples/soft-prompt/prompt.ru.md в CLAUDE.md
+# Скопировать блок из examples/soft-prompt/prompt.ru.md в CLAUDE.md.
+# Обязательно: блок содержит timing-правило — totp_verify должен
+# быть первым tool-call в turn'е, когда приходит код. Коды живут
+# ~30с, промежуточные рассуждения съедают окно. Это правило должно
+# оставаться в любом сценарии, не вырезай его.
 ```
 
 **Шаг 1** сгенерирует секретный ключ и покажет QR-код для привязки

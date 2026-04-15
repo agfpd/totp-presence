@@ -160,7 +160,11 @@ sudo ./examples/claude-code-hook/install.sh
 pip3 install fastmcp  # macOS Homebrew: pip3 install --break-system-packages fastmcp
 
 # 4. Soft prompt — instructions telling the agent when to verify
-# Copy the block from examples/soft-prompt/prompt.md into CLAUDE.md
+# Copy the block from examples/soft-prompt/prompt.md into CLAUDE.md.
+# Mandatory: the block includes a timing rule requiring totp_verify
+# to be the first tool call of the turn when a code arrives —
+# codes expire in ~30s, intermediate reasoning burns the window.
+# Keep this rule in every scenario, do not drop it.
 ```
 
 **Step 1** will generate a secret key and display a QR code for binding
