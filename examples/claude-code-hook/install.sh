@@ -54,6 +54,11 @@ require_core() {
 cmd_install() {
     local window_minutes="$DEFAULT_WINDOW_MINUTES"
     local messaging_tools="$MESSAGING_TOOLS"
+    # mode_flag tracks the explicit operator choice for EDIT_WRITE_CONFIG_ONLY:
+    #   ""        — not specified, preserve existing (with a warning)
+    #   "off"     — --full-lockdown, force EDIT_WRITE_CONFIG_ONLY off
+    #   "on"      — --selective-edit-write, force EDIT_WRITE_CONFIG_ONLY=true
+    local mode_flag=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --window-minutes)
@@ -74,6 +79,19 @@ cmd_install() {
                     die "--messaging-tools: each tool name must match [a-zA-Z0-9_], separated by |. Got: $messaging_tools"
                 fi
                 ;;
+            --full-lockdown)
+                # Force EDIT_WRITE_CONFIG_ONLY off: every Edit/Write requires
+                # a session, regardless of path. Pair this with matcher ".*".
+                [ "$mode_flag" = "on" ] && die "--full-lockdown conflicts with --selective-edit-write"
+                mode_flag="off"
+                ;;
+            --selective-edit-write)
+                # Force EDIT_WRITE_CONFIG_ONLY=true: Edit/Write on non-config
+                # files pass through without a session; only protected config
+                # paths require TOTP. Pair with a narrow matcher.
+                [ "$mode_flag" = "off" ] && die "--selective-edit-write conflicts with --full-lockdown"
+                mode_flag="on"
+                ;;
             *) die "unknown flag: $1" ;;
         esac
         shift || true
@@ -87,7 +105,15 @@ cmd_install() {
 
     # Preserve existing config values on reinstall.
     # If --messaging-tools was not passed but config already has
-    # EXTRA_SAFE_TOOLS, keep the old value. Same for EDIT_WRITE_CONFIG_ONLY.
+    # EXTRA_SAFE_TOOLS, keep the old value.
+    #
+    # EDIT_WRITE_CONFIG_ONLY is handled differently: it is a security-
+    # critical mode (it determines whether non-config Edit/Write bypass
+    # the session check), so silent preservation across reinstalls is a
+    # footgun. If the operator switched the matcher in settings.json
+    # from a narrow selective list to ".*" but forgot to reset this
+    # flag, every Edit/Write would pass through without TOTP. Require
+    # an explicit mode flag, or warn loudly when preserving.
     local existing_est=""
     local existing_ewco=""
     if [ -r "$CONFIG_FILE" ]; then
@@ -101,7 +127,28 @@ cmd_install() {
     if [ -z "$messaging_tools" ] && [ -n "$existing_est" ]; then
         messaging_tools="$existing_est"
     fi
-    local edit_write_config_only="${existing_ewco:-}"
+
+    local edit_write_config_only=""
+    case "$mode_flag" in
+        off)
+            edit_write_config_only=""
+            ;;
+        on)
+            edit_write_config_only="true"
+            ;;
+        "")
+            # No explicit flag — preserve existing, but warn so the
+            # operator notices what they inherited.
+            edit_write_config_only="${existing_ewco:-}"
+            if [ "$edit_write_config_only" = "true" ]; then
+                warn "preserving EDIT_WRITE_CONFIG_ONLY=true from existing config."
+                warn "  Non-config Edit/Write will bypass the session check."
+                warn "  If your settings.json matcher is now '.*' or has widened,"
+                warn "  re-run with --full-lockdown to require TOTP for every Edit/Write."
+                warn "  Pass --selective-edit-write to acknowledge and silence this warning."
+            fi
+            ;;
+    esac
 
     say ""
     say "$(c_bold 'claude-code-hook install')"
@@ -226,6 +273,7 @@ claude-code-hook — reference totp-presence integration for Claude Code
 
 Usage:
   sudo $0 [install] [--window-minutes N] [--messaging-tools "tool1|tool2"]
+                    [--full-lockdown | --selective-edit-write]
   sudo $0 uninstall
 
 Options:
@@ -233,6 +281,20 @@ Options:
   --messaging-tools "tools"   Pipe-separated tool names to allow without
                               a session (e.g. Telegram reply tool). Required
                               for headless agents using matcher ".*".
+  --full-lockdown             Force EDIT_WRITE_CONFIG_ONLY off. Every
+                              Edit/Write requires a session, regardless of
+                              path. Pair with matcher ".*". This is the
+                              fail-safe default for a fresh install.
+  --selective-edit-write      Force EDIT_WRITE_CONFIG_ONLY=true. Edit/Write
+                              on non-config files pass through without a
+                              session; only protected config paths
+                              (settings.json, CLAUDE.md, .claude/agents/*)
+                              require TOTP. Pair with a narrow matcher
+                              such as "Edit|Write|mcp__peekaboo__.*".
+
+If neither --full-lockdown nor --selective-edit-write is given, an
+existing EDIT_WRITE_CONFIG_ONLY value is preserved with a warning.
+Picking one explicitly silences the warning and pins the mode.
 
 The core must be installed first: sudo ./core/setup.sh install
 EOF

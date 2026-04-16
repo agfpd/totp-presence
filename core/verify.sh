@@ -141,6 +141,24 @@ if [ "$SESSION_FLAG" = "--session" ]; then
                     exit 1
                     ;;
             esac
+            # Restrict --session targets to filenames ending in '-session'.
+            # Without this restriction, a caller (or a prompt-injected
+            # agent that already holds a valid code) could pass any
+            # direct child of INSTALL_DIR — including the secret, the
+            # verify binary itself, an integration's hook script, or
+            # the fail-counter — and have it overwritten by a unix
+            # timestamp and chmod'd to 644. The session-write path
+            # would silently brick the protection it is meant to
+            # gate. The '-session' suffix is the convention every
+            # documented integration already follows
+            # (claude-code-session, my-integration-session, ...).
+            case "$REL" in
+                *-session) ;;
+                *)
+                    echo "error: --session filename must end with '-session' suffix (e.g. claude-code-session)" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         *)
             echo "error: --session path must be under $INSTALL_DIR/" >&2
@@ -270,14 +288,43 @@ if ! rm -f "$FAIL_COUNTER_FILE"; then
 fi
 
 # -------- write session (optional) --------
+#
+# Atomic, symlink-safe write:
+#   1. Refuse to write through an existing symlink at SESSION_PATH —
+#      a hostile symlink (root-only to plant in /etc/totp-presence/,
+#      but possible via earlier integration bug or install error)
+#      could redirect the timestamp write to /etc/shadow or any
+#      root-writable file.
+#   2. Stage the new contents in a temp file (mktemp creates with a
+#      random suffix in the same directory, so the rename below is on
+#      the same filesystem and is atomic). The temp file gets the
+#      target ownership and mode before the rename, so consumers
+#      never observe a half-written session file with wrong perms.
+#   3. mv -f replaces the target atomically. If the target was a
+#      regular file, it is unlinked. If the target did not exist,
+#      it is created. Either way, no partial state is observable.
 
 if [ "$SESSION_FLAG" = "--session" ] && [ -n "$SESSION_PATH" ]; then
-    if ! date +%s > "$SESSION_PATH"; then
-        echo "error: failed to write session file at $SESSION_PATH" >&2
+    if [ -L "$SESSION_PATH" ]; then
+        echo "error: refusing to write through symlink at $SESSION_PATH" >&2
         exit 1
     fi
-    chown root:wheel "$SESSION_PATH" 2>/dev/null || chown root:root "$SESSION_PATH"
-    chmod 644 "$SESSION_PATH"
+    TMP_SESSION=$(mktemp "${SESSION_PATH}.XXXXXX") || {
+        echo "error: failed to create temporary session file alongside $SESSION_PATH" >&2
+        exit 1
+    }
+    if ! date +%s > "$TMP_SESSION"; then
+        rm -f "$TMP_SESSION"
+        echo "error: failed to write temporary session file" >&2
+        exit 1
+    fi
+    chown root:wheel "$TMP_SESSION" 2>/dev/null || chown root:root "$TMP_SESSION"
+    chmod 644 "$TMP_SESSION"
+    if ! mv -f "$TMP_SESSION" "$SESSION_PATH"; then
+        rm -f "$TMP_SESSION"
+        echo "error: failed to move temporary session file into place at $SESSION_PATH" >&2
+        exit 1
+    fi
 fi
 
 echo "ok"

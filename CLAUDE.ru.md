@@ -41,6 +41,10 @@ sudo ./examples/claude-code-hook/install.sh
 # Шаг 3, если нужно другое окно сессии (по умолчанию 25 мин):
 sudo ./examples/claude-code-hook/install.sh --window-minutes 15
 
+# Шаг 3, чтобы явно зафиксировать режим блокировки (рекомендуется при переустановке):
+sudo ./examples/claude-code-hook/install.sh --full-lockdown
+sudo ./examples/claude-code-hook/install.sh --selective-edit-write
+
 # Шаг 6, если агент работает через Telegram/Slack:
 sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
 ```
@@ -221,7 +225,17 @@ sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_teleg
 EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment
 ```
 
-4. **Куда добавить сниппет? Спроси человека.**
+4. **Зафиксируй режим блокировки.** Передай установщику
+   `--full-lockdown` (matcher `.*`, рекомендуется) или
+   `--selective-edit-write` (узкий matcher). Это запишет
+   `EDIT_WRITE_CONFIG_ONLY` явно в конфигурацию и заглушит warning,
+   который установщик иначе печатает при переустановке. Без явного
+   флага установщик сохраняет существующее значение, но громко
+   предупреждает, если унаследованное значение — `true`: этот
+   режим пропускает non-config Edit/Write без сессии и должен
+   соответствовать выбору matcher в `settings.json`.
+
+5. **Куда добавить сниппет? Спроси человека.**
    - **Проектный** `<проект>/.claude/settings.json` — только для
      этого агента.
    - **Глобальный** `~/.claude/settings.json` — для всех проектов.
@@ -240,6 +254,8 @@ settings.json. Мягкий режим (MCP + soft-prompt) продолжит
 |---|---|
 | Проверить установку | `./core/setup.sh status` (без sudo) |
 | Изменить окно сессии | `sudo ./examples/claude-code-hook/install.sh --window-minutes N` |
+| Зафиксировать полную блокировку | `sudo ./examples/claude-code-hook/install.sh --full-lockdown` |
+| Зафиксировать выборочную блокировку | `sudo ./examples/claude-code-hook/install.sh --selective-edit-write` |
 | Настроить messaging | `sudo ./examples/claude-code-hook/install.sh --messaging-tools "tool1\|tool2"` |
 | Удалить интеграцию | `sudo ./examples/claude-code-hook/install.sh uninstall` |
 | Удалить ядро | `sudo ./core/setup.sh uninstall` |

@@ -206,6 +206,12 @@ commands that bypass the file-name check in Edit and Write.
    `cp ... .claude.json`) are caught and require the same shortened
    window (120 seconds).
 
+The match is case-insensitive (both for `file_path` in Edit/Write and
+for the Bash command string). On APFS (the macOS default) the
+filesystem is case-insensitive: `Settings.json` resolves to the same
+inode as `settings.json` on disk, so the matcher would otherwise miss
+a write that actually lands on the protected file.
+
 **Limitations of the Bash check.** Text search over the command
 string catches direct commands but does not catch obfuscation:
 

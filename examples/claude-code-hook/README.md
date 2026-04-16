@@ -35,6 +35,10 @@ sudo ./examples/claude-code-hook/install.sh
 sudo ./examples/claude-code-hook/install.sh --window-minutes 15
 # for agents without a terminal (Telegram, etc.):
 sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
+# explicit full lockdown (recommended for a fresh install with matcher ".*"):
+sudo ./examples/claude-code-hook/install.sh --full-lockdown
+# explicit selective lockdown (pair with a narrow matcher):
+sudo ./examples/claude-code-hook/install.sh --selective-edit-write
 ```
 
 The installer:
@@ -43,9 +47,15 @@ The installer:
 2. Creates `claude-code-session` with a zero timestamp (session is
    immediately expired).
 3. Writes `claude-code-config` with `WINDOW_SECONDS` and optionally
-   `EXTRA_SAFE_TOOLS`. On reinstallation, preserves existing values
-   of `EXTRA_SAFE_TOOLS` and `EDIT_WRITE_CONFIG_ONLY` if they are
-   not explicitly set via flags.
+   `EXTRA_SAFE_TOOLS` and `EDIT_WRITE_CONFIG_ONLY`. On reinstallation,
+   `EXTRA_SAFE_TOOLS` from the existing config is preserved silently
+   if not overridden by a flag. `EDIT_WRITE_CONFIG_ONLY` is
+   preserved too, but with a warning printed when the inherited
+   value is `true` — because that mode is security-critical (it
+   lets non-config Edit/Write through without a session), so silent
+   inheritance across reinstalls is a footgun. Pass
+   `--full-lockdown` to force it off, or `--selective-edit-write`
+   to force it on and silence the warning.
 4. Prints a JSON snippet for `~/.claude/settings.json`. It must be
    added manually — Claude Code will ask for explicit confirmation.
 
@@ -121,6 +131,21 @@ while configuration files (`settings.json`, `settings.local.json`,
 shortened window (120 seconds). Bash commands mentioning configuration
 paths are also blocked. Without this option (the default) Edit and
 Write require a session like any other tool.
+
+Set the mode explicitly via the installer:
+
+```sh
+# turn it on (selective):
+sudo ./examples/claude-code-hook/install.sh --selective-edit-write
+# turn it off (full lockdown):
+sudo ./examples/claude-code-hook/install.sh --full-lockdown
+```
+
+The two flags conflict and cannot be combined in one command. Without
+either flag, the existing value is preserved on reinstall — and if the
+inherited value is `true`, the installer prints a warning, because
+that combination silently lets non-config Edit/Write through and is
+easy to leave behind after switching the matcher in `settings.json`.
 
 ## Communication channels (EXTRA_SAFE_TOOLS)
 

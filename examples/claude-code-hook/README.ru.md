@@ -35,6 +35,10 @@ sudo ./examples/claude-code-hook/install.sh
 sudo ./examples/claude-code-hook/install.sh --window-minutes 15
 # для агентов без терминала (Telegram и др.):
 sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
+# явная полная блокировка (рекомендуется при свежей установке с matcher ".*"):
+sudo ./examples/claude-code-hook/install.sh --full-lockdown
+# явная выборочная блокировка (в паре с узким matcher):
+sudo ./examples/claude-code-hook/install.sh --selective-edit-write
 ```
 
 Установщик:
@@ -43,9 +47,15 @@ sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_teleg
 2. Создаёт `claude-code-session` с нулевой меткой (сессия сразу
    просрочена).
 3. Пишет `claude-code-config` с `WINDOW_SECONDS` и опционально
-   `EXTRA_SAFE_TOOLS`. При переустановке сохраняет существующие
-   значения `EXTRA_SAFE_TOOLS` и `EDIT_WRITE_CONFIG_ONLY`, если
-   они не заданы явно через флаги.
+   `EXTRA_SAFE_TOOLS` и `EDIT_WRITE_CONFIG_ONLY`. При переустановке
+   `EXTRA_SAFE_TOOLS` из существующего конфига сохраняется тихо,
+   если не переопределён флагом. `EDIT_WRITE_CONFIG_ONLY` тоже
+   сохраняется, но если унаследованное значение — `true`, печатается
+   warning, потому что этот режим security-критичный (пропускает
+   non-config Edit/Write без сессии), и тихое наследование при
+   переустановке — это footgun. Передай `--full-lockdown` чтобы
+   принудительно выключить, или `--selective-edit-write` чтобы
+   принудительно включить и заглушить warning.
 4. Печатает JSON-сниппет для `~/.claude/settings.json`. Его нужно
    добавить вручную — Claude Code попросит явное подтверждение.
 
@@ -122,6 +132,21 @@ Edit и Write на обычные файлы проходят без прове�
 требуют укороченное окно (120 секунд). Bash-команды с упоминанием
 конфигурационных путей тоже блокируются. Без этой опции (по
 умолчанию) Edit и Write требуют сессию как любой другой инструмент.
+
+Режим задаётся явно через установщик:
+
+```sh
+# включить (выборочная блокировка):
+sudo ./examples/claude-code-hook/install.sh --selective-edit-write
+# выключить (полная блокировка):
+sudo ./examples/claude-code-hook/install.sh --full-lockdown
+```
+
+Эти два флага конфликтуют и не могут быть переданы вместе. Без
+любого из флагов существующее значение сохраняется при переустановке,
+и если унаследованное значение — `true`, установщик печатает warning,
+потому что эта комбинация бесшумно пропускает non-config Edit/Write,
+и её легко забыть после смены matcher'а в `settings.json`.
 
 ## Каналы связи (EXTRA_SAFE_TOOLS)
 

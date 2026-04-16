@@ -257,7 +257,10 @@ sudo /etc/totp-presence/verify 123456 \
 ```
 
 Путь для `--session` жёстко валидируется: допускается только файл
-внутри `/etc/totp-presence/`. Подробнее — [core/README.ru.md](./core/README.ru.md).
+внутри `/etc/totp-presence/`, имя которого оканчивается на `-session` —
+ничего другого через верификатор не перезаписать, а сама запись
+атомарна и отказывается следовать симлинкам. Подробнее —
+[core/README.ru.md](./core/README.ru.md).
 
 ### Интеграции (`examples/`)
 

@@ -35,6 +35,17 @@
 
 set -u
 
+# Case-insensitive matching for `case ... esac` patterns below. macOS
+# default filesystem (APFS) is case-insensitive: a file named
+# `Settings.json` resolves to the same inode as `settings.json`, so
+# the on-disk write hits the same file the protection is meant to
+# guard. Without this flag, a literal `Settings.json` (or any other
+# casing) sails past the matcher and the edit lands without a TOTP
+# prompt. Hook input arrives from Claude Code with case as typed by
+# the agent, so the matcher must absorb arbitrary casing for any
+# protected basename.
+shopt -s nocasematch
+
 SESSION_FILE="/etc/totp-presence/claude-code-session"
 CONFIG_FILE="/etc/totp-presence/claude-code-config"
 VERIFY_CMD="sudo /etc/totp-presence/verify <code> --session /etc/totp-presence/claude-code-session"
@@ -205,7 +216,7 @@ if [ "$EDIT_WRITE_CONFIG_ONLY" = "true" ]; then
             _IS_CONFIG=""
             if [ -n "$TOOL_FILE_PATH" ]; then
                 case "$TOOL_FILE_PATH" in
-                    */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md|*/.claude/agents/*)
+                    */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md|*/.claude/agents/*|settings.json|settings.local.json|.claude.json|CLAUDE.md|.claude/agents/*)
                         _IS_CONFIG="1"
                         ;;
                 esac
@@ -223,7 +234,7 @@ if [ "$EDIT_WRITE_CONFIG_ONLY" = "true" ]; then
             # that requires filesystem-level protection (chflags/chown).
             _IS_CONFIG=""
             if [ -n "$TOOL_COMMAND" ]; then
-                if printf '%s' "$TOOL_COMMAND" | grep -qE '(settings\.json|settings\.local\.json|\.claude\.json|CLAUDE\.md|\.claude/agents/)'; then
+                if printf '%s' "$TOOL_COMMAND" | grep -iqE '(settings\.json|settings\.local\.json|\.claude\.json|CLAUDE\.md|\.claude/agents/)'; then
                     _IS_CONFIG="1"
                 fi
             fi
@@ -301,7 +312,7 @@ fi
 IS_PROTECTED_PATH=""
 if [ -n "$TOOL_FILE_PATH" ]; then
     case "$TOOL_FILE_PATH" in
-        */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md|*/.claude/agents/*)
+        */settings.json|*/settings.local.json|*/.claude.json|*/CLAUDE.md|*/.claude/agents/*|settings.json|settings.local.json|.claude.json|CLAUDE.md|.claude/agents/*)
             IS_PROTECTED_PATH="1"
             ;;
     esac
@@ -310,8 +321,10 @@ fi
 # This catches direct shell writes (echo, sed, cp, tee, etc.) to
 # protected files. Does NOT catch obfuscation (variables, eval,
 # base64) — for that, use filesystem-level protection.
+# grep -i: APFS is case-insensitive; `Settings.json` resolves to the
+# same inode as `settings.json` and must be matched the same way.
 if [ "$TOOL_NAME" = "Bash" ] && [ -n "$TOOL_COMMAND" ] && [ -z "$IS_PROTECTED_PATH" ]; then
-    if printf '%s' "$TOOL_COMMAND" | grep -qE '(settings\.json|settings\.local\.json|\.claude\.json|CLAUDE\.md|\.claude/agents/)'; then
+    if printf '%s' "$TOOL_COMMAND" | grep -iqE '(settings\.json|settings\.local\.json|\.claude\.json|CLAUDE\.md|\.claude/agents/)'; then
         IS_PROTECTED_PATH="1"
     fi
 fi

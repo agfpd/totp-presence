@@ -41,6 +41,10 @@ sudo ./examples/claude-code-hook/install.sh
 # Step 3, if a different session window is needed (default 25 min):
 sudo ./examples/claude-code-hook/install.sh --window-minutes 15
 
+# Step 3, to pin the lockdown mode explicitly (recommended on reinstall):
+sudo ./examples/claude-code-hook/install.sh --full-lockdown
+sudo ./examples/claude-code-hook/install.sh --selective-edit-write
+
 # Step 6, if the agent operates via Telegram/Slack:
 sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
 ```
@@ -222,7 +226,17 @@ sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_teleg
 EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment
 ```
 
-4. **Where to add the snippet? Ask the human.**
+4. **Pin the lockdown mode.** Pass `--full-lockdown` (matcher `.*`,
+   recommended) or `--selective-edit-write` (narrow matcher) to the
+   installer. This writes `EDIT_WRITE_CONFIG_ONLY` explicitly into
+   the config and silences the warning the installer would otherwise
+   print on reinstall. Without an explicit flag the installer
+   preserves the existing value, but warns loudly if the inherited
+   value is `true` — that mode lets non-config Edit/Write through
+   without a session and must match the matcher choice in
+   `settings.json`.
+
+5. **Where to add the snippet? Ask the human.**
    - **Project-level** `<project>/.claude/settings.json` — only for
      this agent.
    - **Global** `~/.claude/settings.json` — for all projects.
@@ -240,6 +254,8 @@ settings.json. Soft mode (MCP + soft prompt) will continue to work.
 |---|---|
 | Check installation | `./core/setup.sh status` (no sudo) |
 | Change session window | `sudo ./examples/claude-code-hook/install.sh --window-minutes N` |
+| Pin full lockdown | `sudo ./examples/claude-code-hook/install.sh --full-lockdown` |
+| Pin selective lockdown | `sudo ./examples/claude-code-hook/install.sh --selective-edit-write` |
 | Configure messaging | `sudo ./examples/claude-code-hook/install.sh --messaging-tools "tool1\|tool2"` |
 | Remove integration | `sudo ./examples/claude-code-hook/install.sh uninstall` |
 | Remove core | `sudo ./core/setup.sh uninstall` |

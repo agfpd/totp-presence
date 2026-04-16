@@ -66,8 +66,18 @@ strictly validated:
 - must be inside `/etc/totp-presence/`
 - must be a direct child of the directory (no subdirectories)
 - no `..`, no `//`
+- basename must end with `-session` (so a caller cannot redirect the
+  write to the secret, the verifier itself, an integration's hook, or
+  the fail-counter — any of which would silently brick the protection
+  the verifier is meant to provide)
+- must not be a symlink
 
-After writing, the file receives permissions `root:wheel 644`.
+The write itself is atomic and symlink-safe: contents are staged in a
+sibling temp file (`mktemp` in the same directory), the ownership and
+mode are set on the temp file, and `mv -f` swaps it into place. No
+partial state is observable.
+
+After the swap, the file is `root:wheel 644`.
 
 This is the only way for integrations to securely store a session.
 The path and name are chosen by the integration:

@@ -256,7 +256,10 @@ sudo /etc/totp-presence/verify 123456 \
 ```
 
 The `--session` path is strictly validated: only files directly inside
-`/etc/totp-presence/` are allowed. Details — [core/README.md](./core/README.md).
+`/etc/totp-presence/` whose name ends with `-session` are allowed —
+nothing else can be overwritten through the verifier, and the write
+itself is atomic and refuses to follow symlinks. Details —
+[core/README.md](./core/README.md).
 
 ### Integrations (`examples/`)
 
