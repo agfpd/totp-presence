@@ -24,12 +24,13 @@ appears on disk:
 ```
 /etc/totp-presence/                    static, sysadmin-managed
 ├── secret                             root:wheel 600 — secret key (base32)
-└── verify                             root:wheel 755 — verifier
+├── verify                             root:wheel 755 — verifier
+└── VERSION                            root:wheel 644 — installed build marker
 
 /etc/sudoers.d/totp-presence           root:wheel 440 — passwordless sudo for verify
 ```
 
-Three artifacts under root. That is all the static install.
+Four artefacts under root. That is all the static install.
 
 During operation the following ephemeral runtime tree is created
 lazily (tmpfs on Linux, synthetic filesystem on macOS — cleared on
@@ -49,6 +50,33 @@ presence signal). Reboot clears every runtime artefact; after a
 reboot the user must re-authenticate. This is intentional:
 "the owner was at the machine N minutes ago" should not survive a
 power cycle.
+
+## Updating
+
+After a `git pull` to a newer release, run the upgrade command
+instead of re-running `install`:
+
+```sh
+sudo ./core/setup.sh update
+```
+
+`update` replaces `/etc/totp-presence/verify` and
+`/etc/totp-presence/VERSION` with the copies from the source tree
+and clears the brute-force fail-counter so the upgraded verifier
+starts from a clean slate. It leaves the seed
+(`/etc/totp-presence/secret`), the sudoers rule, authenticator
+pairings, and every per-integration session file untouched. No
+re-enrolment is needed.
+
+If integrations are installed, each one typically has its own
+`update` subcommand — see the integration's README
+(e.g., [`examples/claude-code-hook/README.md`](../examples/claude-code-hook/README.md)).
+
+The `install` command is the wrong tool for an upgrade: it asks
+whether to overwrite the seed (answering wrongly either breaks
+the authenticator pairing or aborts), prints a fresh
+`otpauth://` URL and QR code, and runs a self-test that blocks
+on human input for a current code. `update` avoids all three.
 
 ## Public API
 

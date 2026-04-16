@@ -224,10 +224,24 @@ commands that bypass the file-name check in Edit and Write.
    even if the regular session is active.
 
 3. **Hook: Bash.** The hook parses the shell command content and
-   performs a text search for configuration paths. Direct commands
+   performs a text search for configuration paths. Write commands
    (`echo >> settings.json`, `sed -i CLAUDE.md`,
-   `cp ... .claude.json`) are caught and require the same shortened
-   window (120 seconds).
+   `cp ... .claude.json`, and other commands that can mutate the
+   target: `mv`, `rm`, `tee`, `chmod`, `chown`, `install`, `touch`,
+   `dd`, `ln`, `find -delete`, `find -exec`) are caught and require
+   the same shortened window (120 seconds). Diagnostic read-only
+   commands on the same files pass without TOTP: `cat`, `head`,
+   `tail`, `grep`, `wc`, `stat`, `file`, `ls`, `diff`, `awk`,
+   `find`, `jq`, `cut`, `sort`, `uniq` and similar utilities,
+   provided the first token of the command is on that short
+   read-only allowlist and the command contains no write marker
+   anywhere. Reading a config file moves no security-relevant
+   state; gating it on a fresh code was pure friction. Writes
+   remain gated. Any ambiguous command — unknown first token, any
+   suspected write marker — falls through to the deny path and the
+   human is asked for a code; that is recoverable, and the
+   classifier errs on the side of reject because a false negative
+   (a write mis-classified as read) would silently bypass TOTP.
 
 The match is case-insensitive (both for `file_path` in Edit/Write and
 for the Bash command string). On APFS (the macOS default) the

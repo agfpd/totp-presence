@@ -251,11 +251,34 @@ not from you.
 **How to disable hard lockdown:** remove the snippet from
 settings.json. Soft mode (MCP + soft prompt) will continue to work.
 
+### Updating an existing install
+
+If totp-presence is already installed and the human just did a
+`git pull` to a newer release, do NOT run `install` again — the
+core installer would regenerate the seed and break authenticator
+pairings. Use the upgrade path:
+
+```sh
+sudo ./core/setup.sh update
+sudo ./examples/claude-code-hook/install.sh update
+```
+
+Both commands replace only the installed scripts (`verify` and
+`claude-code-guard.sh`) and the core's `VERSION` marker. They
+preserve the seed, the sudoers rule, every configuration value
+(`WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`, `EDIT_WRITE_CONFIG_ONLY`),
+any open session, and the authenticator pairing. The
+brute-force fail-counter is cleared so the upgraded verifier
+starts from a clean slate. No re-enrolment and no Claude Code
+restart are needed.
+
 ### Reference commands
 
 | Action | Command |
 |---|---|
 | Check installation | `./core/setup.sh status` (no sudo) |
+| Update core after `git pull` | `sudo ./core/setup.sh update` |
+| Update the hook integration after `git pull` | `sudo ./examples/claude-code-hook/install.sh update` |
 | Change session window | `sudo ./examples/claude-code-hook/install.sh --window-minutes N` |
 | Pin full lockdown | `sudo ./examples/claude-code-hook/install.sh --full-lockdown` |
 | Pin selective lockdown | `sudo ./examples/claude-code-hook/install.sh --selective-edit-write` |

@@ -251,11 +251,35 @@ EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_teleg
 settings.json. Мягкий режим (MCP + soft-prompt) продолжит
 работать.
 
+### Обновление уже установленного totp-presence
+
+Если totp-presence уже установлен, и человек только что сделал
+`git pull` на более новую версию, **не запускай** `install`
+заново — установщик ядра перегенерирует секретный ключ и сломает
+привязки аутентификаторов. Вместо этого используй путь
+обновления:
+
+```sh
+sudo ./core/setup.sh update
+sudo ./examples/claude-code-hook/install.sh update
+```
+
+Обе команды заменяют только установленные скрипты (`verify` и
+`claude-code-guard.sh`) и файл версии ядра `VERSION`. Они
+сохраняют секретный ключ, правило sudoers, все значения
+конфигурации (`WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`,
+`EDIT_WRITE_CONFIG_ONLY`), любую открытую сессию и привязку
+аутентификатора. Счётчик неудачных попыток сбрасывается, чтобы
+обновлённый верификатор стартовал с чистого состояния. Повторная
+привязка аутентификатора и перезапуск Claude Code не нужны.
+
 ### Справочные команды
 
 | Действие | Команда |
 |---|---|
 | Проверить установку | `./core/setup.sh status` (без sudo) |
+| Обновить ядро после `git pull` | `sudo ./core/setup.sh update` |
+| Обновить хук-интеграцию после `git pull` | `sudo ./examples/claude-code-hook/install.sh update` |
 | Изменить окно сессии | `sudo ./examples/claude-code-hook/install.sh --window-minutes N` |
 | Зафиксировать полную блокировку | `sudo ./examples/claude-code-hook/install.sh --full-lockdown` |
 | Зафиксировать выборочную блокировку | `sudo ./examples/claude-code-hook/install.sh --selective-edit-write` |
