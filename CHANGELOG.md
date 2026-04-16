@@ -7,58 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- `sudo ./core/setup.sh update` — upgrade path that replaces
-  `/etc/totp-presence/verify` and `/etc/totp-presence/VERSION`,
-  clears the brute-force fail-counter, and preserves the seed, the
-  sudoers rule, and authenticator pairings. Intended as the routine
-  action after `git pull`.
-- `sudo ./examples/claude-code-hook/install.sh update` — replaces
-  `claude-code-guard.sh`, preserves `claude-code-config`
-  (`WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`, `EDIT_WRITE_CONFIG_ONLY`) and
-  the per-user session file. No Claude Code restart required —
-  the next tool invocation picks up the new guard.
-- README documents the upgrade path in a new `Updating` section.
-- Bats-core regression test suite in `tests/`:
-  - `tests/hook/` — 49 tests, no sudo. A sandbox under `$TMPDIR`
-    replaces the hardcoded `/etc/totp-presence` and
-    `/var/run/totp-presence` paths so the hook runs against a
-    throwaway install. Covers the read-only exit list
-    (`Read`/`Glob`/`Grep`/`LS`/`TodoWrite`/`WebSearch`/`ToolSearch` +
-    `mcp__totp-presence__*`), normal-window session check,
-    `CONFIG_WINDOW_SECONDS` for protected paths, H1 (APFS
-    case-insensitive matching), H2 (relative-path matching),
-    §5b (Bash command text scan), H3 (`EDIT_WRITE_CONFIG_ONLY`
-    modes), M1 (parse-failure fail-safe deny), M2
-    (`EXTRA_SAFE_TOOLS` injection guard), L3 (session-timestamp
-    sanity), and future-timestamp rejection.
-  - `tests/core/` — 15 tests that exercise the installed
-    `/etc/totp-presence/verify` through its sudoers rule.
-    Non-destructive: all use a shape-valid dummy code and rely on
-    `--session` path validation firing before the TOTP compare.
-    Covers C1 prefix rule, `..` / `//` / subdirectory / suffix
-    rejections, legacy v1 path migration hint, argument-shape
-    validation.
-  - `tests/README.md` documents how to run locally (`brew install
-    bats-core` on macOS, `apt install bats` on Linux) and how to
-    add new tests.
-- GitHub Actions CI workflow (`.github/workflows/ci.yml`) — three
-  parallel jobs on every push / PR against main:
-  - `shellcheck` job on ubuntu-latest. Lints every `.sh` file
-    outside `.git/` and `tests/` at `--severity=warning`;
-    info-level hints (SC2015, SC2012, SC2181) are acknowledged but
-    non-blocking.
-  - `hook-tests-ubuntu` — `bats tests/hook/` on ubuntu-latest.
-    Validates bash 4 / GNU utils behaviour.
-  - `hook-tests-macos` — `bats tests/hook/` on macos-latest.
-    Validates the bash 3.2 floor we document in Requirements.
-  Core tests (`tests/core/`) require a paired authenticator and
-  are not yet part of CI; a headless install mode is on the
-  Post-1.0 roadmap.
-- CI build badge in README EN+RU.
-
-## [0.2.0] — 2026-04-16
+## [0.2.0] — 2026-04-17
 
 Security audit closure release. All changes are backwards-incompatible
 with respect to on-disk layout (runtime state moved from `/etc/totp-presence/`
@@ -155,6 +104,55 @@ pre-release security audit.
 - `VERSION` file at the repo root and at `/etc/totp-presence/VERSION`
   after `sudo ./core/setup.sh install`. `./core/setup.sh status`
   reports the installed version.
+- `sudo ./core/setup.sh update` — upgrade path that replaces
+  `/etc/totp-presence/verify` and `/etc/totp-presence/VERSION`,
+  clears the brute-force fail-counter, and preserves the seed, the
+  sudoers rule, and authenticator pairings. Intended as the routine
+  action after `git pull`.
+- `sudo ./examples/claude-code-hook/install.sh update` — replaces
+  `claude-code-guard.sh`, preserves `claude-code-config`
+  (`WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`, `EDIT_WRITE_CONFIG_ONLY`)
+  and the per-user session file. No Claude Code restart required —
+  the next tool invocation picks up the new guard.
+- README documents the upgrade path in a new `Updating` section.
+- Bats-core regression test suite in `tests/`:
+  - `tests/hook/` — 49 tests, no sudo. A sandbox under `$TMPDIR`
+    replaces the hardcoded `/etc/totp-presence` and
+    `/var/run/totp-presence` paths so the hook runs against a
+    throwaway install. Covers the read-only exit list
+    (`Read`/`Glob`/`Grep`/`LS`/`TodoWrite`/`WebSearch`/`ToolSearch` +
+    `mcp__totp-presence__*`), normal-window session check,
+    `CONFIG_WINDOW_SECONDS` for protected paths, H1 (APFS
+    case-insensitive matching), H2 (relative-path matching),
+    §5b (Bash command text scan), H3 (`EDIT_WRITE_CONFIG_ONLY`
+    modes), M1 (parse-failure fail-safe deny), M2
+    (`EXTRA_SAFE_TOOLS` injection guard), L3 (session-timestamp
+    sanity), and future-timestamp rejection.
+  - `tests/core/` — 15 tests that exercise the installed
+    `/etc/totp-presence/verify` through its sudoers rule.
+    Non-destructive: all use a shape-valid dummy code and rely on
+    `--session` path validation firing before the TOTP compare.
+    Covers C1 prefix rule, `..` / `//` / subdirectory / suffix
+    rejections, legacy v1 path migration hint, argument-shape
+    validation.
+  - `tests/README.md` documents how to run locally (`brew install
+    bats-core` on macOS, `apt install bats` on Linux) and how to
+    add new tests.
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) — three
+  parallel jobs on every push / PR against `main` (and on `v*` tag
+  pushes):
+  - `shellcheck` on ubuntu-latest. Lints every `.sh` outside
+    `.git/` and `tests/` at `--severity=warning`; info-level hints
+    (SC2015, SC2012, SC2181, SC2295) are acknowledged but
+    non-blocking.
+  - `hook-tests-ubuntu` — `bats tests/hook/` on ubuntu-latest.
+    Validates bash 4 / GNU utils behaviour.
+  - `hook-tests-macos` — `bats tests/hook/` on macos-latest.
+    Validates the bash 3.2 floor documented in Requirements.
+  Core tests (`tests/core/`) are not in CI yet: they require a
+  paired authenticator and a live `/etc/totp-presence/verify`.
+  A headless install mode is on the Post-1.0 roadmap.
+- CI build badge in README EN+RU.
 
 ## [0.1.0] — 2026-04-13
 
