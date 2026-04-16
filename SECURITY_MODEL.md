@@ -55,6 +55,23 @@ code is on the order of years. The verifier serializes concurrent
 invocations via an exclusive lock (atomic mkdir), so a parallel
 attacker cannot bypass the counter.
 
+**Why not exponential back-off?** We considered escalating the
+lockout (5 → 30 → 120 → 1440 minutes) and decided against it. With a
+6-digit code and valid_window=1, the expected number of trials to hit
+a valid code is ~333,000. The flat 5-min lockout caps the attacker at
+~1,440 attempts per day, so the expected hit is ~231 days of
+continuous brute-force — already on the order of "years" in any
+useful sense. An attacker with local-shell-but-not-root access
+(compromised npm package, backdoored MCP server, CI runner) who is
+patient enough for that rate has cheaper and quieter paths:
+memory/procfs inspection during an open verify, session hijack of a
+live integration, social-engineering the owner, or MITM at
+authenticator enrolment. Closing the theoretical 231-day window down
+to a 200-year window does not change the attacker's best move — it
+just adds code to a security-critical verifier we try to keep small.
+The documented flat lockout is honest about the protection it
+provides; escalating back-off would be security-theatre.
+
 ### Signal boundaries
 
 - **Physical coercion** is not covered. A code obtained under duress
