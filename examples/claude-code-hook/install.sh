@@ -8,13 +8,22 @@
 # integration-specific pieces:
 #
 #   /etc/totp-presence/claude-code-guard.sh       root:wheel 755 — PreToolUse hook
-#   /etc/totp-presence/claude-code-session        root:wheel 644 — timestamp (init 0)
 #   /etc/totp-presence/claude-code-config         root:wheel 644 — WINDOW_SECONDS
 #
-# It does NOT edit ~/.claude/settings.json automatically. It prints a
-# JSON snippet you can merge in manually. Claude Code will ask your
-# explicit approval before saving any edit to settings.json anyway,
-# even in bypass-permissions mode — so there's no honest shortcut here.
+# The session file lives under the FHS-compliant runtime tree and is
+# created lazily by the verifier on the first successful TOTP code:
+#
+#   /var/run/totp-presence/<user>/claude-code-session
+#
+# It is per-user (each non-root account has its own session) and
+# ephemeral (the runtime tree is tmpfs on Linux, synthetic on macOS,
+# cleared at reboot). The installer never creates it directly.
+#
+# This script does NOT edit ~/.claude/settings.json automatically. It
+# prints a JSON snippet you can merge in manually. Claude Code will ask
+# your explicit approval before saving any edit to settings.json
+# anyway, even in bypass-permissions mode — so there's no honest
+# shortcut here.
 #
 # Usage:
 #   sudo ./examples/claude-code-hook/install.sh [--window-minutes N] [--messaging-tools "tool1|tool2"]
@@ -23,10 +32,18 @@
 set -euo pipefail
 
 INSTALL_DIR="/etc/totp-presence"
-SESSION_FILE="$INSTALL_DIR/claude-code-session"
 CONFIG_FILE="$INSTALL_DIR/claude-code-config"
 GUARD_INSTALLED="$INSTALL_DIR/claude-code-guard.sh"
 VERIFY_INSTALLED="$INSTALL_DIR/verify"
+
+# Runtime tree (per-machine + per-user). Sessions live under
+# $RUNTIME_BASE/<user>/<integration>-session and are created lazily by
+# the verifier. The installer only references this path for migration
+# of legacy v1 layout and for printing the example verify command.
+RUNTIME_BASE="/var/run/totp-presence"
+
+# Legacy v1 path — used only for one-shot migration on reinstall.
+LEGACY_SESSION_FILE="$INSTALL_DIR/claude-code-session"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARD_SRC="$SCRIPT_DIR/guard.sh"
@@ -49,6 +66,47 @@ require_root() {
 
 require_core() {
     [ -f "$VERIFY_INSTALLED" ] || die "core is not installed. run first: sudo ./core/setup.sh install"
+}
+
+invoking_user() {
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        printf '%s' "$SUDO_USER"
+        return
+    fi
+    die "could not determine invoking non-root user. Run with sudo from your normal account, not as root."
+}
+
+set_root_owner() {
+    chown root:wheel "$1" 2>/dev/null || chown root:root "$1"
+}
+
+# Lazy migration v1 → v2 for the session file. v1 stored the session
+# under /etc/totp-presence/claude-code-session; v2 stores it under
+# /var/run/totp-presence/<user>/claude-code-session. On reinstall, if
+# the legacy file exists, move its content (the session timestamp) to
+# the new per-user location and remove the legacy file. Best-effort —
+# missing or unreadable legacy means there is nothing to migrate.
+migrate_legacy_session() {
+    local user="$1"
+    [ -f "$LEGACY_SESSION_FILE" ] || return 0
+    local user_dir="$RUNTIME_BASE/$user"
+    if [ ! -d "$user_dir" ]; then
+        mkdir -p "$user_dir" 2>/dev/null || true
+        chmod 755 "$user_dir" 2>/dev/null || true
+        set_root_owner "$user_dir" || true
+    fi
+    local target="$user_dir/claude-code-session"
+    if [ ! -e "$target" ]; then
+        mv "$LEGACY_SESSION_FILE" "$target" 2>/dev/null || rm -f "$LEGACY_SESSION_FILE" 2>/dev/null || true
+        if [ -f "$target" ]; then
+            chmod 644 "$target" 2>/dev/null || true
+            set_root_owner "$target" || true
+            ok "migrated legacy session $LEGACY_SESSION_FILE -> $target"
+        fi
+    else
+        rm -f "$LEGACY_SESSION_FILE" 2>/dev/null || true
+        ok "removed obsolete legacy session $LEGACY_SESSION_FILE (new location already populated)"
+    fi
 }
 
 cmd_install() {
@@ -101,6 +159,9 @@ cmd_install() {
     require_core
     [ -f "$GUARD_SRC" ] || die "guard.sh source not found at $GUARD_SRC"
 
+    local user
+    user="$(invoking_user)"
+
     local window_seconds=$(( window_minutes * 60 ))
 
     # Preserve existing config values on reinstall.
@@ -150,9 +211,13 @@ cmd_install() {
             ;;
     esac
 
+    local session_file="$RUNTIME_BASE/$user/claude-code-session"
+
     say ""
     say "$(c_bold 'claude-code-hook install')"
+    say "  user:      ${user}"
     say "  window:    ${window_minutes} min (${window_seconds} s)"
+    say "  session:   ${session_file} (created lazily on first verify)"
     if [ -n "$messaging_tools" ]; then
         say "  messaging: ${messaging_tools}"
     fi
@@ -160,7 +225,7 @@ cmd_install() {
 
     # Install guard hook.
     install -m 755 "$GUARD_SRC" "$GUARD_INSTALLED"
-    chown root:wheel "$GUARD_INSTALLED" 2>/dev/null || chown root:root "$GUARD_INSTALLED"
+    set_root_owner "$GUARD_INSTALLED"
     ok "installed $GUARD_INSTALLED"
 
     # Write config.
@@ -193,15 +258,12 @@ EOF
 EDIT_WRITE_CONFIG_ONLY=$edit_write_config_only
 EOF
     fi
-    chown root:wheel "$CONFIG_FILE" 2>/dev/null || chown root:root "$CONFIG_FILE"
+    set_root_owner "$CONFIG_FILE"
     chmod 644 "$CONFIG_FILE"
     ok "wrote $CONFIG_FILE (WINDOW_SECONDS=$window_seconds)"
 
-    # Initialize session file (expired).
-    printf '0' > "$SESSION_FILE"
-    chown root:wheel "$SESSION_FILE" 2>/dev/null || chown root:root "$SESSION_FILE"
-    chmod 644 "$SESSION_FILE"
-    ok "initialized $SESSION_FILE (expired)"
+    # One-shot migration of any legacy v1 session file.
+    migrate_legacy_session "$user"
 
     say ""
     say "$(c_bold 'Next step: enable the hook in Claude Code')"
@@ -246,7 +308,10 @@ EOF
     fi
     say "$(c_bold 'How the agent opens a session when it is blocked:')"
     say "  Ask the human for a TOTP code, then:"
-    say "    sudo /etc/totp-presence/verify 123456 --session $SESSION_FILE"
+    say "    sudo /etc/totp-presence/verify 123456 --session $session_file"
+    say ""
+    say "  The session file is created on the first successful verify and"
+    say "  lives in the per-user runtime tree (cleared on reboot)."
     say ""
     ok "claude-code-hook installed"
 }
@@ -255,9 +320,27 @@ cmd_uninstall() {
     require_root "uninstall"
     say ""
     say "$(c_bold 'claude-code-hook uninstall')"
-    for f in "$GUARD_INSTALLED" "$SESSION_FILE" "$CONFIG_FILE"; do
+    # Remove static integration files.
+    for f in "$GUARD_INSTALLED" "$CONFIG_FILE"; do
         [ -e "$f" ] && { rm -f "$f"; ok "removed $f"; } || warn "$f did not exist"
     done
+    # Remove any leftover legacy session from v1 layout.
+    [ -e "$LEGACY_SESSION_FILE" ] && { rm -f "$LEGACY_SESSION_FILE"; ok "removed legacy $LEGACY_SESSION_FILE"; } || true
+    # Remove this integration's session files across all users on the
+    # machine. Each lives at $RUNTIME_BASE/<user>/claude-code-session.
+    if [ -d "$RUNTIME_BASE" ]; then
+        local removed_any=""
+        for user_dir in "$RUNTIME_BASE"/*/; do
+            [ -d "$user_dir" ] || continue
+            local s="${user_dir%/}/claude-code-session"
+            if [ -e "$s" ]; then
+                rm -f "$s"
+                ok "removed $s"
+                removed_any="1"
+            fi
+        done
+        [ -z "$removed_any" ] && warn "no per-user session files found under $RUNTIME_BASE/*/"
+    fi
     say ""
     warn "Manual step: remove the matcher from ~/.claude/settings.json."
     warn "  jq '(.hooks.PreToolUse) |= map(select(.hooks[0].command != \"$GUARD_INSTALLED\"))' \\"
@@ -295,6 +378,11 @@ Options:
 If neither --full-lockdown nor --selective-edit-write is given, an
 existing EDIT_WRITE_CONFIG_ONLY value is preserved with a warning.
 Picking one explicitly silences the warning and pins the mode.
+
+The session file is created lazily by the verifier on the first
+successful TOTP code. It lives at
+/var/run/totp-presence/<user>/claude-code-session and is cleared at
+reboot. The installer never creates it directly.
 
 The core must be installed first: sudo ./core/setup.sh install
 EOF

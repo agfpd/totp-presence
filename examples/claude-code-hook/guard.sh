@@ -22,16 +22,22 @@
 # read-only exit-list is small, stable, and fails safe on anything
 # the hook doesn't recognise.
 #
-# Session management lives in the integration, not in the core:
-#   /etc/totp-presence/claude-code-session     — root:wheel 644, timestamp
-#   /etc/totp-presence/claude-code-config      — root:wheel 644, WINDOW_SECONDS
+# Session management lives in the integration, not in the core. The
+# session file is per-user and ephemeral (cleared at reboot):
+#   /var/run/totp-presence/<user>/claude-code-session   — root:wheel 644, timestamp
+#   /etc/totp-presence/claude-code-config               — root:wheel 644, WINDOW_SECONDS
 #
-# The core verifier (/etc/totp-presence/verify) knows how to write this
-# session file when the user hands over a valid TOTP code:
+# The core verifier (/etc/totp-presence/verify) creates this session
+# file lazily on the first successful TOTP code:
 #
-#   sudo /etc/totp-presence/verify 123456 --session /etc/totp-presence/claude-code-session
+#   sudo /etc/totp-presence/verify 123456 --session /var/run/totp-presence/<user>/claude-code-session
 #
 # This hook never writes anything. It only reads.
+#
+# Hook execution context: PreToolUse hooks run as the user that started
+# Claude Code, so $USER (or $LOGNAME, $HOME) reliably names the human
+# whose session we should be reading. We use that to resolve the
+# per-user session path.
 
 set -u
 
@@ -46,9 +52,18 @@ set -u
 # protected basename.
 shopt -s nocasematch
 
-SESSION_FILE="/etc/totp-presence/claude-code-session"
+# Resolve the invoking user from the environment. PreToolUse hooks
+# inherit the user's environment from Claude Code, so $USER is the
+# obvious primary source. Fall back to LOGNAME, then to id -un, then
+# (last resort) to the literal "default". This must succeed for any
+# real invocation; getting it wrong only means the hook reads the
+# wrong session file and (fail-safe) denies.
+HOOK_USER="${USER:-${LOGNAME:-$(id -un 2>/dev/null || echo default)}}"
+
+RUNTIME_BASE="/var/run/totp-presence"
+SESSION_FILE="$RUNTIME_BASE/$HOOK_USER/claude-code-session"
 CONFIG_FILE="/etc/totp-presence/claude-code-config"
-VERIFY_CMD="sudo /etc/totp-presence/verify <code> --session /etc/totp-presence/claude-code-session"
+VERIFY_CMD="sudo /etc/totp-presence/verify <code> --session $SESSION_FILE"
 
 # Default window if config is missing or malformed.
 WINDOW_SECONDS=1500  # 25 minutes

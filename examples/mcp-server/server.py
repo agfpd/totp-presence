@@ -17,11 +17,25 @@ installed sudoers NOPASSWD rule:
 
   sudo -n /etc/totp-presence/verify <code> --session <path>
 
+Layout (FHS-compliant):
+  Static, sysadmin-managed:
+    /etc/totp-presence/secret                       (root:wheel 600)
+    /etc/totp-presence/verify                       (root:wheel 755)
+    /etc/totp-presence/<integration>-config         (root:wheel 644)
+
+  Runtime, ephemeral (cleared at reboot):
+    /var/run/totp-presence/<user>/<integration>-session  (root:wheel 644)
+
+  This server runs as the human user (not root). It resolves
+  `<user>` from the process environment (USER / LOGNAME / pwd entry).
+  Sessions are scoped per user so multi-user machines stay isolated.
+
 Prerequisites:
   - totp-presence core is installed (sudo ./core/setup.sh install)
-  - At least one integration is installed — its session/config files live
-    directly under /etc/totp-presence/ as <integration>-session and
-    <integration>-config.
+  - At least one integration is installed — its config file lives under
+    /etc/totp-presence/ as <integration>-config. The matching
+    session file is created lazily by the core verifier on the first
+    successful TOTP code.
   - Python 3.10+
   - fastmcp package (pip3 install fastmcp)
 
@@ -42,11 +56,13 @@ Safety notes:
     write them. The only write path is through the core verifier with a
     valid code.
   - The `integration` parameter is constrained to [a-z0-9-]+ so it cannot
-    escape the /etc/totp-presence/ directory or target unrelated files.
+    escape the runtime directory or target unrelated files.
 """
 
 from __future__ import annotations
 
+import os
+import pwd
 import re
 import subprocess
 import time
@@ -71,12 +87,24 @@ INSTALL_DIR = Path("/etc/totp-presence")
 SECRET_FILE = INSTALL_DIR / "secret"       # cannot read; existence check only
 VERIFY_BIN = INSTALL_DIR / "verify"
 
+# Sessions and the brute-force counter live under the FHS-compliant
+# runtime tree, per-user. The directory is created lazily by the core
+# verifier on the first successful TOTP code; this process only reads
+# from it.
+RUNTIME_BASE = Path("/var/run/totp-presence")
+
 DEFAULT_WINDOW_SECONDS = 1500  # fallback if integration has no config file
 
 # Integration names must be short, lowercase, kebab-case. This keeps us
 # far away from any possibility of path traversal or hitting a file we
 # didn't mean to.
 INTEGRATION_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+# Same shape we accept for a $USER component when splicing into a path.
+# Matches the verifier's own SUDO_USER guard: starts with letter or
+# underscore, then up to 31 chars of [a-zA-Z0-9_-]. This is what every
+# real Unix account on macOS / Linux looks like.
+USER_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$")
 
 # 6-digit TOTP code shape.
 CODE_RE = re.compile(r"^[0-9]{6}$")
@@ -86,9 +114,33 @@ CODE_RE = re.compile(r"^[0-9]{6}$")
 # --------------------------------------------------------------------------
 
 
+def invoking_user() -> str:
+    """Return the human user whose session this server should resolve.
+
+    Tries (in order): $USER, $LOGNAME, getpwuid(getuid()).pw_name.
+    Validates the result against USER_NAME_RE so the value is safe to
+    splice into a directory path. Raises ToolError otherwise.
+    """
+    candidate = os.environ.get("USER") or os.environ.get("LOGNAME")
+    if not candidate:
+        try:
+            candidate = pwd.getpwuid(os.getuid()).pw_name
+        except KeyError:
+            candidate = None
+    if not candidate or not USER_NAME_RE.match(candidate):
+        raise ToolError(
+            "Could not determine the invoking user from the process "
+            "environment (USER / LOGNAME / passwd lookup all failed or "
+            "produced an unsafe value). Make sure the MCP server runs "
+            "under a regular user account."
+        )
+    return candidate
+
+
 @dataclass
 class IntegrationPaths:
     name: str
+    user: str
     session_file: Path
     config_file: Path
 
@@ -99,9 +151,11 @@ class IntegrationPaths:
                 "integration name must match [a-z0-9][a-z0-9-]{0,63} "
                 f"(got: {name!r})"
             )
+        user = invoking_user()
         return cls(
             name=name,
-            session_file=INSTALL_DIR / f"{name}-session",
+            user=user,
+            session_file=RUNTIME_BASE / user / f"{name}-session",
             config_file=INSTALL_DIR / f"{name}-config",
         )
 
@@ -162,10 +216,16 @@ def _resolve_integration(name: str) -> IntegrationPaths:
     except ValueError as exc:
         raise ToolError(str(exc))
 
-    if not paths.session_file.exists():
+    # The session file is created lazily by the core verifier on the
+    # first successful TOTP code, so its absence does NOT mean the
+    # integration is uninstalled — it just means the session has never
+    # been opened yet. Use the static config file (written at install
+    # time and never removed during normal operation) as the
+    # installation marker instead.
+    if not paths.config_file.exists():
         raise ToolError(
             f"Integration {name!r} is not installed — "
-            f"{paths.session_file} does not exist. "
+            f"{paths.config_file} does not exist. "
             f"Use totp_status to see which integrations are available."
         )
     return paths
@@ -348,28 +408,41 @@ def totp_check_session(
 def totp_status() -> dict[str, Any]:
     """Report core installation status and all visible integrations.
 
-    Lists which integrations have session files under /etc/totp-presence/
-    and their current open/closed state. Does not require a code and does
+    Lists which integrations have a config file under
+    /etc/totp-presence/ and their current open/closed state for the
+    invoking user (sessions are per-user under
+    /var/run/totp-presence/<user>/). Does not require a code and does
     not mutate anything. Use this to diagnose installation problems or
     see what integrations are available.
     """
     result: dict[str, Any] = {
         "core_installed": core_installed(),
         "install_dir": str(INSTALL_DIR),
+        "runtime_base": str(RUNTIME_BASE),
+        "user": None,
         "integrations": [],
     }
+
+    try:
+        result["user"] = invoking_user()
+    except ToolError as exc:
+        # Surface the resolution failure but keep the rest of the
+        # status report useful (core_installed, install_dir).
+        result["user_error"] = str(exc)
 
     if not INSTALL_DIR.is_dir():
         return result
 
-    for path in sorted(INSTALL_DIR.glob("*-session")):
-        name = path.name[: -len("-session")]
+    # Enumerate integrations by their static config files (the
+    # installation marker), not by the lazy-created session files.
+    for path in sorted(INSTALL_DIR.glob("*-config")):
+        name = path.name[: -len("-config")]
         if not INTEGRATION_NAME_RE.match(name):
             continue
         try:
             state = totp_check_session(name)
-        except Exception:
-            state = {"integration": name, "open": False, "error": "check failed"}
+        except Exception as exc:
+            state = {"integration": name, "open": False, "error": str(exc)}
         result["integrations"].append(state)
 
     return result
