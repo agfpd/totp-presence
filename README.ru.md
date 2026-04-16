@@ -240,6 +240,34 @@ password-записи. Создай запись-плейсхолдер:
 
 </details>
 
+## Обновление
+
+После `git pull` — upgrade-путь. Ни одна из команд не трогает seed,
+sudoers-правило, привязку аутентификатора и конфигурационные файлы:
+открытые сессии остаются открытыми, привязанные аутентификаторы —
+валидными.
+
+```sh
+cd totp-presence
+git pull
+sudo ./core/setup.sh update
+sudo ./examples/claude-code-hook/install.sh update   # для каждой установленной интеграции
+```
+
+- `core/setup.sh update` — заменяет `verify` и
+  `/etc/totp-presence/VERSION`, сбрасывает brute-force fail-counter
+  (чтобы обновлённый верификатор стартовал с чистого состояния),
+  сохраняет seed и sudoers-правило.
+- `claude-code-hook/install.sh update` — заменяет
+  `claude-code-guard.sh`, сохраняет `claude-code-config` (то есть
+  `WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`, `EDIT_WRITE_CONFIG_ONLY`
+  остаются как были) и per-user файл сессии. Claude Code подхватит
+  новый guard на следующем вызове инструмента — рестарт не нужен.
+
+Чтобы изменить окно сессии или allowlist messaging-тулов — перезапусти
+`install` с соответствующими флагами (reinstall-safe: неуказанные
+флаги сохраняют существующие значения конфига).
+
 ## Архитектура
 
 Проект разделён на два слоя:
@@ -420,7 +448,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 - [ ] Тесты (bats) для ядра и хука
 - [ ] CI с lint + тестами (матрица: macOS + Ubuntu)
 - [ ] Боевое тестирование установки на Linux (Ubuntu + Fedora)
-- [ ] Режим `update` для `setup.sh` / `install.sh` (сохранять seed при апгрейде)
+- [x] Режим `update` для `setup.sh` / `install.sh` — сохраняет seed при апгрейде *(реализовано, ждёт следующего тега)*
 - [ ] Демо-запись (asciinema / gif)
 
 **Post-1.0:**

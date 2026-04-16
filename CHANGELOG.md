@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `sudo ./core/setup.sh update` — upgrade path that replaces
+  `/etc/totp-presence/verify` and `/etc/totp-presence/VERSION`,
+  clears the brute-force fail-counter, and preserves the seed, the
+  sudoers rule, and authenticator pairings. Intended as the routine
+  action after `git pull`.
+- `sudo ./examples/claude-code-hook/install.sh update` — replaces
+  `claude-code-guard.sh`, preserves `claude-code-config`
+  (`WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`, `EDIT_WRITE_CONFIG_ONLY`) and
+  the per-user session file. No Claude Code restart required —
+  the next tool invocation picks up the new guard.
+- README documents the upgrade path in a new `Updating` section.
+
 ## [0.2.0] — 2026-04-16
 
 Security audit closure release. All changes are backwards-incompatible

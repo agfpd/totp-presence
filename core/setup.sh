@@ -25,6 +25,11 @@ SECRET_FILE="$INSTALL_DIR/secret"
 VERIFY_INSTALLED="$INSTALL_DIR/verify"
 SUDOERS_FILE="/etc/sudoers.d/totp-presence"
 
+# Runtime tree — must match verify.sh. `update` clears the fail-counter
+# here; `status` and `uninstall` don't need it, they stay under
+# INSTALL_DIR.
+RUNTIME_BASE="/var/run/totp-presence"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERIFY_SRC="$SCRIPT_DIR/verify.sh"
 
@@ -239,6 +244,101 @@ EOF
     say ""
 }
 
+# -------- update --------
+#
+# Replace the installed verifier and VERSION marker with a freshly
+# checked-out source tree, preserving the seed, the sudoers rule, and
+# all per-integration config/session files. The upgrade path for
+# existing installs: pull the latest commit, `sudo ./core/setup.sh
+# update`, then run the integration's `update` if you have one.
+#
+# Why a separate command rather than re-running `install`:
+#   - `install` asks whether to overwrite the seed, which is the wrong
+#     question for a routine upgrade — the operator sees the prompt
+#     and reflexively answers one way or the other.
+#   - `install` generates and prints an `otpauth://` URL and a QR code
+#     for pairing. Printing this on every upgrade is noisy and (worse)
+#     mixes the real enrolment flow with the code-bump flow.
+#   - `install` runs a self-test that requires a fresh TOTP code. An
+#     upgrade shouldn't ask for human input.
+#
+# What update does:
+#   - replace /etc/totp-presence/verify with the script from the source tree
+#   - replace /etc/totp-presence/VERSION with the repo's VERSION
+#   - clear the fail-counter (both the current /var/run location and the
+#     legacy /etc location) so the upgraded verifier doesn't inherit an
+#     active lockout from the previous version's rate-limit state.
+#
+# What update does NOT touch:
+#   - the seed (/etc/totp-presence/secret) — authenticator pairings stay valid
+#   - the sudoers rule — the verifier's path is unchanged, the rule still applies
+#   - integration configs and session files — each integration has its
+#     own `update` command if it needs one
+
+cmd_update() {
+    require_root "update"
+    require_os
+    require_python
+
+    [ -f "$VERIFY_SRC" ] || die "verify.sh source not found at $VERIFY_SRC"
+    [ -f "$VERIFY_INSTALLED" ] || die "core is not installed. run first: sudo $0 install"
+    [ -f "$SECRET_FILE" ] || die "secret not found at $SECRET_FILE — core state is inconsistent; run 'sudo $0 install' and pair the authenticator again"
+
+    local old_version="unknown"
+    if [ -f "$VERSION_FILE" ]; then
+        _ov=$(tr -d '[:space:]' < "$VERSION_FILE" 2>/dev/null || true)
+        [ -n "${_ov:-}" ] && old_version="$_ov"
+        unset _ov
+    fi
+
+    say ""
+    say "$(c_bold 'totp-presence core update')"
+    say "  old version: $old_version"
+    say "  new version: $VERSION"
+    say ""
+
+    # Replace verifier. `install -m 755` creates or overwrites atomically
+    # via the same mechanism as first install; no half-written verifier
+    # is ever observable by a concurrent sudo invocation.
+    install -m 755 "$VERIFY_SRC" "$VERIFY_INSTALLED"
+    chown root:wheel "$VERIFY_INSTALLED" 2>/dev/null || chown root:root "$VERIFY_INSTALLED"
+    ok "replaced $VERIFY_INSTALLED"
+
+    # Replace VERSION marker. Missing source is a warning, not an error.
+    if [ -f "$VERSION_SRC" ]; then
+        install -m 644 "$VERSION_SRC" "$VERSION_FILE"
+        chown root:wheel "$VERSION_FILE" 2>/dev/null || chown root:root "$VERSION_FILE"
+        ok "updated $VERSION_FILE ($old_version → $VERSION)"
+    else
+        warn "VERSION source not found at $VERSION_SRC — left existing marker unchanged"
+    fi
+
+    # Clear the fail-counter so the upgrade starts from a clean slate.
+    # Runtime location (v2) is authoritative; the legacy /etc path is a
+    # best-effort cleanup for very old installations that never migrated.
+    if [ -f "$RUNTIME_BASE/fail-counter" ]; then
+        rm -f "$RUNTIME_BASE/fail-counter"
+        ok "cleared runtime fail-counter at $RUNTIME_BASE/fail-counter"
+    fi
+    if [ -f "$INSTALL_DIR/fail-counter" ]; then
+        rm -f "$INSTALL_DIR/fail-counter"
+        ok "cleared legacy fail-counter at $INSTALL_DIR/fail-counter"
+    fi
+
+    say ""
+    ok "core update complete — seed and sudoers rule preserved"
+    say ""
+    say "  Authenticator pairings remain valid. Any open integration"
+    say "  session files are untouched and continue to tick against"
+    say "  their configured windows."
+    say ""
+    say "$(c_bold 'Next step')"
+    say "  If you have integrations installed, update each one in turn:"
+    say ""
+    say "    sudo ./examples/claude-code-hook/install.sh update"
+    say ""
+}
+
 # -------- uninstall --------
 
 cmd_uninstall() {
@@ -297,6 +397,7 @@ totp-presence core — the verification primitive
 
 Usage:
   sudo $0 install      generate seed, install verifier, add sudoers rule
+  sudo $0 update       replace verifier + VERSION, preserve seed and sudoers (upgrade path)
   sudo $0 uninstall    remove seed, verifier, sudoers rule
   $0 status            show what's installed (no sudo needed)
 
@@ -310,6 +411,7 @@ main() {
     local cmd="$1"; shift
     case "$cmd" in
         install)   cmd_install "$@" ;;
+        update)    cmd_update "$@" ;;
         uninstall) cmd_uninstall "$@" ;;
         status)    cmd_status "$@" ;;
         -h|--help|help) usage ;;

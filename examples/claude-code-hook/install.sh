@@ -316,6 +316,79 @@ EOF
     ok "claude-code-hook installed"
 }
 
+# -------- update --------
+#
+# Replace the installed guard.sh with the source from the current
+# checkout, preserving the config file (WINDOW_SECONDS,
+# EXTRA_SAFE_TOOLS, EDIT_WRITE_CONFIG_ONLY) and the per-user session
+# file. Intended as the routine upgrade path after `git pull` +
+# `sudo ../../core/setup.sh update`.
+#
+# Why separate from `install`:
+#   - install re-reads flags from argv and regenerates the config
+#     file. That's right for the first setup or for a re-pinning of
+#     EDIT_WRITE_CONFIG_ONLY, but wrong for a code-only bump.
+#   - install prints the full onboarding block (hook snippet, messaging
+#     guidance, verify command). On every upgrade that's noise.
+#   - install warns loudly about inherited EDIT_WRITE_CONFIG_ONLY=true.
+#     That warning is helpful when the operator is actively switching
+#     matchers in settings.json; it's noise when they just pulled a
+#     bug fix.
+#
+# What update does:
+#   - replace /etc/totp-presence/claude-code-guard.sh with the source guard.sh
+#   - run the legacy v1 → v2 session migration (no-op after the first
+#     v0.2 run, idempotent)
+#
+# What update does NOT touch:
+#   - /etc/totp-presence/claude-code-config — preserves WINDOW_SECONDS,
+#     EXTRA_SAFE_TOOLS, EDIT_WRITE_CONFIG_ONLY
+#   - per-user session files — any currently open session stays open
+#   - ~/.claude/settings.json — the entry still points at the same
+#     guard path, so Claude Code picks up the new hook on the next
+#     tool invocation
+
+cmd_update() {
+    require_root "update"
+    require_core
+    [ -f "$GUARD_SRC" ] || die "guard.sh source not found at $GUARD_SRC"
+    [ -f "$GUARD_INSTALLED" ] || die "integration is not installed. run first: sudo $0 install"
+
+    local user
+    user="$(invoking_user)"
+
+    say ""
+    say "$(c_bold 'claude-code-hook update')"
+    say "  user:            $user"
+    say "  guard script:    $GUARD_INSTALLED"
+    if [ -f "$CONFIG_FILE" ]; then
+        say "  config (kept):   $CONFIG_FILE"
+    else
+        warn "config file $CONFIG_FILE missing — integration is in an odd state"
+    fi
+    say ""
+
+    # Replace guard. install -m 755 performs the same atomic swap as on
+    # first install; an in-flight Claude Code tool call either sees the
+    # old guard or the new one, never a half-written one.
+    install -m 755 "$GUARD_SRC" "$GUARD_INSTALLED"
+    set_root_owner "$GUARD_INSTALLED"
+    ok "replaced $GUARD_INSTALLED"
+
+    # Legacy v1 → v2 session migration. Idempotent; after the first v0.2
+    # run it's a no-op, but cheap enough to run on every update in case
+    # the host somehow missed it on the v0.2 bootstrap.
+    migrate_legacy_session "$user"
+
+    say ""
+    ok "claude-code-hook update complete — config and session preserved"
+    say ""
+    say "  The entry in ~/.claude/settings.json still points at the"
+    say "  same guard path. Claude Code picks up the new guard on the"
+    say "  next tool invocation — no restart required."
+    say ""
+}
+
 cmd_uninstall() {
     require_root "uninstall"
     say ""
@@ -357,9 +430,10 @@ claude-code-hook — reference totp-presence integration for Claude Code
 Usage:
   sudo $0 [install] [--window-minutes N] [--messaging-tools "tool1|tool2"]
                     [--full-lockdown | --selective-edit-write]
+  sudo $0 update              replace guard.sh, preserve config and session
   sudo $0 uninstall
 
-Options:
+Options (for install only — update keeps existing values):
   --window-minutes N          Session window in minutes (default: 25)
   --messaging-tools "tools"   Pipe-separated tool names to allow without
                               a session (e.g. Telegram reply tool). Required
@@ -379,6 +453,14 @@ If neither --full-lockdown nor --selective-edit-write is given, an
 existing EDIT_WRITE_CONFIG_ONLY value is preserved with a warning.
 Picking one explicitly silences the warning and pins the mode.
 
+The \`update\` command replaces only the guard script and is the
+intended upgrade path after \`git pull\` + \`sudo ../../core/setup.sh
+update\`. It never re-reads the installer's flags and never asks about
+inherited config values — the existing config file is kept verbatim.
+To change window size or messaging tools after install, re-run with
+\`install\` (reinstall-safe: config values are preserved silently
+unless a flag overrides them).
+
 The session file is created lazily by the verifier on the first
 successful TOTP code. It lives at
 /var/run/totp-presence/<user>/claude-code-session and is cleared at
@@ -392,6 +474,7 @@ main() {
     local cmd="${1:-install}"
     case "$cmd" in
         install)   shift || true; cmd_install "$@" ;;
+        update)    shift || true; cmd_update "$@" ;;
         uninstall) shift || true; cmd_uninstall "$@" ;;
         -h|--help|help) usage ;;
         *)

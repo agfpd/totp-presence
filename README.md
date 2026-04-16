@@ -240,6 +240,33 @@ the QR.
 
 </details>
 
+## Updating
+
+After pulling a new version, run the upgrade path. Neither command
+touches the seed, the sudoers rule, the authenticator pairing, or
+configuration files — open sessions remain open, paired
+authenticators remain valid.
+
+```sh
+cd totp-presence
+git pull
+sudo ./core/setup.sh update
+sudo ./examples/claude-code-hook/install.sh update   # for each installed integration
+```
+
+- `core/setup.sh update` — replaces `verify` and `/etc/totp-presence/VERSION`,
+  clears the brute-force fail-counter so the upgraded verifier starts
+  from a clean slate, keeps the seed and sudoers rule.
+- `claude-code-hook/install.sh update` — replaces `claude-code-guard.sh`,
+  keeps `claude-code-config` (so `WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`,
+  `EDIT_WRITE_CONFIG_ONLY` are preserved exactly) and the per-user
+  session file. Claude Code picks up the new guard on the next tool
+  invocation — no restart.
+
+To change window size or messaging-tool allowlist, re-run with
+`install` and its flags (reinstall-safe: unset flags preserve
+existing config values).
+
 ## Architecture
 
 The project is split into two layers:
@@ -422,7 +449,7 @@ per-version notes.
 - [ ] Test suite (bats) for core and hook
 - [ ] CI with lint + tests (matrix: macOS + Ubuntu)
 - [ ] Live-system installation testing on Linux (Ubuntu + Fedora)
-- [ ] `update` mode for `setup.sh` / `install.sh` (preserve seed across upgrades)
+- [x] `update` mode for `setup.sh` / `install.sh` — preserve seed across upgrades *(implemented, pending next release tag)*
 - [ ] Demo recording (asciinema / gif)
 
 **Post-1.0:**
