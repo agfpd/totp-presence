@@ -457,7 +457,7 @@ per-version notes.
 **Post-1.0:**
 
 - [ ] Claude Code plugin package
-- [ ] Read/write semantic split in hook (`cat settings.json` should not require TOTP)
+- [x] Read/write semantic split in hook — diagnostic reads (`cat settings.json`, `grep hook settings.json`, `head CLAUDE.md`, …) pass without TOTP; writes still require it *(implemented, pending next release tag)*
 - [ ] Homebrew formula + one-command installer
 - [ ] Notification before session-window expiry
 - [ ] Native Windows support (PowerShell + DPAPI)

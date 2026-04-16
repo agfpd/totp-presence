@@ -201,8 +201,18 @@ The shortened window applies to three tools:
 
 - **Edit and Write** — by `file_path` in the invocation parameters.
 - **Bash** — the hook parses the shell command content and performs a
-  text search for configuration paths. Direct commands
-  (`echo >> settings.json`, `sed -i CLAUDE.md`) are caught.
+  text search for configuration paths. Write commands
+  (`echo >> settings.json`, `sed -i CLAUDE.md`, `cp`, `mv`, `rm`,
+  `tee`, `chmod`, `chown`, `find -delete`, etc.) are caught.
+  Diagnostic read-only commands on the same paths pass without TOTP:
+  `cat ~/.claude/settings.json`, `grep hook settings.json`,
+  `head -20 CLAUDE.md`, `jq .mcpServers .claude.json`, etc. The
+  classifier requires the first token to be on a short read-only
+  allowlist (`cat`, `head`, `tail`, `grep`, `wc`, `stat`, `file`,
+  `ls`, `diff`, `awk`, `find`, `jq`, `cut`, `sort`, `uniq`, …) AND
+  the command to contain no write markers anywhere. Anything
+  ambiguous falls through to the tighter config-window deny —
+  recoverable via a fresh TOTP code.
   Obfuscation (variables, base64, eval) is not caught — for that,
   filesystem-level protection is needed (see
   [SECURITY_MODEL.md](../../SECURITY_MODEL.md), §5b).

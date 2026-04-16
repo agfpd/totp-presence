@@ -456,7 +456,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 **Post-1.0:**
 
 - [ ] Claude Code plugin package
-- [ ] Разделение read/write в хуке (`cat settings.json` не должен требовать TOTP)
+- [x] Разделение read/write в хуке — диагностические чтения (`cat settings.json`, `grep hook settings.json`, `head CLAUDE.md`, …) проходят без TOTP; записи всё ещё требуют код *(реализовано, ждёт следующего тега)*
 - [ ] Homebrew formula + однокомандный установщик
 - [ ] Уведомление до окончания окна сессии
 - [ ] Нативная поддержка Windows (PowerShell + DPAPI)

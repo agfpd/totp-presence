@@ -151,6 +151,130 @@ teardown() {
     assert_allow || return 1
 }
 
+# ---------- Read/write split for Bash on config paths ----------
+#
+# A clearly read-only Bash command on a protected config path is
+# lifted from the TOTP requirement — diagnostic reads move no
+# security state and gating them on a fresh code is bad UX. Writes
+# still require TOTP.
+#
+# Classifier lives in guard.sh::is_bash_read_only: first token must
+# be a known read utility (cat/head/tail/grep/wc/stat/file/ls/diff/
+# awk/find/jq/cut/sort/uniq/...), and the command must contain no
+# write markers anywhere (>, >>, ;, &&, ||, backticks, <(...), >(...),
+# tee, sed -i, cp, mv, rm, rmdir, chmod, chown, install, touch, dd,
+# ln, find -delete, find -exec).
+
+@test "Bash cat settings.json passes without session (diagnostic read)" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"cat ~/.claude/settings.json"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+@test "Bash head -20 CLAUDE.md passes without session" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"head -20 CLAUDE.md"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+@test "Bash grep hook settings.json passes without session" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"grep hook /Users/foo/.claude/settings.json"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+@test "Bash wc -l settings.json passes without session" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"wc -l settings.json"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+@test "Bash stat CLAUDE.md passes without session" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"stat /repo/CLAUDE.md"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+@test "Bash read pipeline (cat | head) on settings.json passes" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"cat settings.json | head -5"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+@test "Bash jq .mcpServers .claude.json passes without session" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"jq .mcpServers ~/.claude.json"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+# Write must still be blocked even if the first token is read-only.
+
+@test "Bash cat settings.json with output redirect denies" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"cat settings.json > /tmp/copy"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+}
+
+@test "Bash cat settings.json append redirect denies" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"cat extra >> settings.json"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+}
+
+@test "Bash cat settings.json with semicolon denies" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"cat settings.json; echo hi"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+}
+
+@test "Bash read chain ending in tee denies" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"cat settings.json | tee /tmp/backup"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+}
+
+@test "Bash find -delete on config path denies" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"find . -name settings.json -delete"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+}
+
+@test "Bash find -exec rm denies" {
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"find . -name CLAUDE.md -exec rm {} ;"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+}
+
+@test "Bash command substitution with cat still read-only (config path not written)" {
+    # `cat` inside $() does not write — the outer command decides.
+    # Here we `echo` the result to stdout, no redirection, so allow.
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"echo $(cat settings.json)"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_allow || return 1
+}
+
+@test "Bash non-whitelisted first token on config path denies (fail-safe)" {
+    # An unknown tool might be a write tool — reject conservatively.
+    rm -f "$TEST_SESSION_FILE"
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"python3 -c \"x=open(\\\"settings.json\\\",\\\"w\\\"); x.write(\\\"bad\\\")\""}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+}
+
 # ---------- H3: EDIT_WRITE_CONFIG_ONLY modes ----------
 
 @test "EDIT_WRITE_CONFIG_ONLY=true: non-config Edit passes without session" {

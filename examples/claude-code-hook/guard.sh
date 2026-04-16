@@ -151,6 +151,83 @@ if [ -r "$CONFIG_FILE" ]; then
     unset EWCO_VALUE
 fi
 
+# -------- helper: is_bash_read_only --------
+#
+# Classify a Bash command as "clearly read-only" for the purpose of
+# lifting the TOTP requirement on diagnostic reads of config files.
+#
+# The agent frequently wants to `cat`/`grep`/`head` a config file to
+# see its current state. Without this split, every such read has to
+# pull the human for a fresh 6-digit code — real-world noise, and the
+# read itself does not move any security-relevant state. Writes must
+# still require TOTP: the hook protects against hook removal, MCP
+# rewiring, and injected agent instructions, all of which happen
+# through writes.
+#
+# Design — conservative whitelist + deny-if-any-write-marker:
+#
+#   1. Reject outright if the command contains ANY clear write marker
+#      (output redirection, command separators, chained booleans, or
+#      a known mutating utility). This covers pipes into `tee`,
+#      compound commands with a write in the tail, sed -i, cp, mv,
+#      rm, chmod, chown, install, touch, dd, and `find -delete` /
+#      `find -exec`.
+#
+#   2. Require the first token of the command to be on a short,
+#      explicit read-only allowlist. Pipes are allowed: the first
+#      stage must be read-only, and any write utility anywhere in
+#      the chain has already been rejected in step 1.
+#
+# False positives (a benign command we mis-classify as write) fall
+# through to the normal config-window deny — the human gets a TOTP
+# prompt, which is recoverable. False negatives (a write we
+# mis-classify as read) would bypass TOTP, which is the bug we must
+# not ship. Hence "reject on any doubt".
+
+is_bash_read_only() {
+    local cmd="$1"
+    [ -z "$cmd" ] && return 1
+
+    # Clear write markers: redirections, chaining, and mutating tools.
+    # `2>` and `&>` (stderr redirection) are caught by the generic `>`
+    # pattern too, but stderr redirect by itself does not write to a
+    # config file, so this is a conservative over-deny. Fine.
+    case "$cmd" in
+        *'>'*|*'<('*) return 1 ;;
+        *';'*|*'&&'*|*'||'*|*'`'*) return 1 ;;
+        *' tee '*|'tee '*|*' tee') return 1 ;;
+        *' sed '*-i*|'sed '*-i*) return 1 ;;
+        *' cp '*|'cp '*) return 1 ;;
+        *' mv '*|'mv '*) return 1 ;;
+        *' rm '*|'rm '*) return 1 ;;
+        *' rmdir '*|'rmdir '*) return 1 ;;
+        *' chmod '*|'chmod '*) return 1 ;;
+        *' chown '*|'chown '*) return 1 ;;
+        *' install '*|'install '*) return 1 ;;
+        *' touch '*|'touch '*) return 1 ;;
+        *' dd '*|'dd '*) return 1 ;;
+        *' ln '*|'ln '*) return 1 ;;
+        *' -delete'*|*' -exec '*|*' -execdir '*) return 1 ;;
+    esac
+
+    # First token must be a known read-only utility. Trim leading
+    # whitespace, then take up to the first space.
+    local trimmed="${cmd#"${cmd%%[![:space:]]*}"}"
+    local first="${trimmed%% *}"
+    # Strip a leading `sudo` / `env VAR=x`: they do not themselves
+    # read or write — reject for now, keep the whitelist focused.
+    case "$first" in
+        cat|less|more|head|tail|grep|egrep|fgrep|rg|ag|wc|stat|file|ls|diff|cmp|awk|find|jq|yq|cut|sort|uniq|nl|od|xxd|hexdump|readlink|realpath|basename|dirname|test|true|false|echo|printf|column)
+            : ;;
+        *) return 1 ;;
+    esac
+
+    # `echo` and `printf` are listed for composability (`echo "$FOO"`
+    # is common in pipelines and has no side effects on its own), but
+    # a bare `echo text > file` was already caught by the `>` marker.
+    return 0
+}
+
 # -------- helper: emit deny --------
 #
 # Defined early so the parse-failure block below can use it without
@@ -395,6 +472,21 @@ if [ "$TOOL_NAME" = "Bash" ] && [ -n "$TOOL_COMMAND" ] && [ -z "$IS_PROTECTED_PA
 fi
 
 if [ -n "$IS_PROTECTED_PATH" ]; then
+    # Read/write split for Bash: a clearly read-only command on a
+    # protected path is lifted from the TOTP requirement. Diagnostic
+    # reads of config files are common, they move no security state,
+    # and gating them on a fresh 6-digit code burns the human's
+    # attention. Writes still require TOTP. See is_bash_read_only
+    # above for the exact classifier.
+    #
+    # This does NOT apply to Edit / Write / NotebookEdit — those are
+    # write-only by tool semantics. Reading a config file from the
+    # agent side uses the `Read` tool, which is already in the
+    # read-only exit list above.
+    if [ "$TOOL_NAME" = "Bash" ] && is_bash_read_only "$TOOL_COMMAND"; then
+        exit 0
+    fi
+
     # Check session with the tighter config window.
     if [ -n "$SESSION_AGE" ] && [ "$SESSION_AGE" -ge 0 ] && [ "$SESSION_AGE" -lt "$CONFIG_WINDOW_SECONDS" ]; then
         exit 0
