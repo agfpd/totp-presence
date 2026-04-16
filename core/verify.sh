@@ -59,8 +59,14 @@
 # secure_path, PATH can be empty or minimal. Ensure core utilities like
 # chown, chmod, date are found on both macOS (chown in /usr/sbin) and
 # Linux (chown in /usr/bin). Observed failure: `chown: command not
-# found` at line 246/271, session write silently degraded.
-export PATH="/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+# found`, session write silently degraded.
+#
+# We deliberately do NOT append the inherited $PATH here. macOS sudo
+# does not configure secure_path by default, so the caller can plant
+# attacker-controlled directories that would shadow a missing system
+# utility (renamed/removed). System utilities live in the four
+# directories below; nothing else is needed for verify to do its job.
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 
 set -u
 
@@ -68,12 +74,42 @@ set -u
 # mkdir is atomic on all POSIX systems (macOS + Linux). Ensures
 # brute-force counter cannot be bypassed by parallel forks.
 LOCK_DIR="/etc/totp-presence/.verify-lock"
-LOCK_TIMEOUT=30  # seconds — avoid infinite wait on stale lock (SIGKILL, OOM)
+LOCK_TIMEOUT=30          # seconds — wait this long for an in-flight verify
+LOCK_STALE_AGE=60        # seconds — older than this is considered stale
 cleanup_lock() { rmdir "$LOCK_DIR" 2>/dev/null; }
 trap cleanup_lock EXIT
+
+# Try to detect a stale lock left behind by a SIGKILL'd / OOM'd verify
+# and reclaim it without manual `sudo rmdir`. If the lock dir is older
+# than LOCK_STALE_AGE seconds, no live verify can be holding it (any
+# real verify completes in well under a second, and clients are
+# serialised by us). Remove and retry once. If a second mkdir loses a
+# race against another verify that just reclaimed it, fall through
+# and wait normally — that one is fresh.
+reclaim_if_stale() {
+    if [ ! -d "$LOCK_DIR" ]; then
+        return
+    fi
+    local lock_mtime now age
+    lock_mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null \
+                 || stat -c %Y "$LOCK_DIR" 2>/dev/null \
+                 || echo 0)
+    now=$(date +%s)
+    age=$(( now - lock_mtime ))
+    if [ "$age" -ge "$LOCK_STALE_AGE" ]; then
+        rmdir "$LOCK_DIR" 2>/dev/null || true
+    fi
+}
+
 _lock_start=$(date +%s)
 while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     if [ $(( $(date +%s) - _lock_start )) -ge "$LOCK_TIMEOUT" ]; then
+        # One last attempt: maybe the holder is dead, give the stale
+        # path a chance before refusing the user.
+        reclaim_if_stale
+        if mkdir "$LOCK_DIR" 2>/dev/null; then
+            break
+        fi
         echo "error: lock acquisition timed out after ${LOCK_TIMEOUT}s (stale lock at $LOCK_DIR?). Remove manually: sudo rmdir $LOCK_DIR" >&2
         exit 1
     fi
@@ -262,15 +298,35 @@ unset SECRET
 
 if [ "$RESULT" != "VALID" ]; then
     NEW_COUNT=$(( FAIL_COUNT + 1 ))
+    # Atomic, symlink-safe update of the fail-counter, mirroring the
+    # session-write below. Direct redirection ('> "$FAIL_COUNTER_FILE"')
+    # follows symlinks: if a hostile symlink were planted at this path
+    # (root-only to plant in /etc/totp-presence/, but possible via
+    # earlier integration bug or install error), the brute-force
+    # bookkeeping would land somewhere root can write — e.g. /etc/shadow.
+    if [ -L "$FAIL_COUNTER_FILE" ]; then
+        echo "error: refusing to write through symlink at $FAIL_COUNTER_FILE" >&2
+        exit 1
+    fi
+    TMP_FC=$(mktemp "${FAIL_COUNTER_FILE}.XXXXXX") || {
+        echo "error: failed to create temporary fail-counter alongside $FAIL_COUNTER_FILE" >&2
+        exit 1
+    }
     if ! {
         printf '%s\n' "$NEW_COUNT"
         printf '%s\n' "$NOW"
-    } > "$FAIL_COUNTER_FILE"; then
-        echo "error: failed to update fail-counter at $FAIL_COUNTER_FILE" >&2
+    } > "$TMP_FC"; then
+        rm -f "$TMP_FC"
+        echo "error: failed to write temporary fail-counter" >&2
         exit 1
     fi
-    chown root:wheel "$FAIL_COUNTER_FILE" 2>/dev/null || chown root:root "$FAIL_COUNTER_FILE"
-    chmod 644 "$FAIL_COUNTER_FILE"
+    chown root:wheel "$TMP_FC" 2>/dev/null || chown root:root "$TMP_FC"
+    chmod 644 "$TMP_FC"
+    if ! mv -f "$TMP_FC" "$FAIL_COUNTER_FILE"; then
+        rm -f "$TMP_FC"
+        echo "error: failed to move temporary fail-counter into place at $FAIL_COUNTER_FILE" >&2
+        exit 1
+    fi
 
     if [ "$NEW_COUNT" -ge "$MAX_FAILS" ]; then
         echo "locked out for $LOCKOUT_SECONDS seconds after $NEW_COUNT consecutive failures" >&2

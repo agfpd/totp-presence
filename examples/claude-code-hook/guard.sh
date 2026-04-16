@@ -100,11 +100,29 @@ if [ -r "$CONFIG_FILE" ]; then
     unset CFG_VALUE
 
     # Parse EXTRA_SAFE_TOOLS — pipe-separated tool names.
+    #
+    # The value is plugged into `grep -qE "^($EXTRA_SAFE_TOOLS)$"` below
+    # to decide whether a tool name should pass without a session, so
+    # the value is effectively a regex fragment. install.sh validates
+    # the format when the value comes through --messaging-tools, but
+    # the README also tells operators they may edit this config by hand
+    # under sudo. A typo or a deliberate `.*` here would silently
+    # whitelist every tool. Re-validate on read so neither mistake
+    # nor injection can leak past this layer. The regex matches the
+    # one in install.sh: pipe-separated [a-zA-Z0-9_]+ tokens.
     EST_VALUE=$(grep -E '^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
                 | head -1 \
                 | sed -E 's/^[[:space:]]*EXTRA_SAFE_TOOLS[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//; s/[[:space:]]+$//')
     if [ -n "$EST_VALUE" ]; then
-        EXTRA_SAFE_TOOLS="$EST_VALUE"
+        if printf '%s' "$EST_VALUE" | grep -qE '^[a-zA-Z0-9_]+(\|[a-zA-Z0-9_]+)*$'; then
+            EXTRA_SAFE_TOOLS="$EST_VALUE"
+        else
+            # Malformed value — refuse to honour it. Do not silently
+            # downgrade to the previous (empty) default without a
+            # trace; emit a one-line note to stderr so an operator
+            # checking why a tool was blocked can see the cause.
+            echo "claude-code-guard: refusing malformed EXTRA_SAFE_TOOLS in $CONFIG_FILE — ignored" >&2
+        fi
     fi
     unset EST_VALUE
 
@@ -117,6 +135,37 @@ if [ -r "$CONFIG_FILE" ]; then
     fi
     unset EWCO_VALUE
 fi
+
+# -------- helper: emit deny --------
+#
+# Defined early so the parse-failure block below can use it without
+# depending on the rest of the file being read.
+
+emit_deny() {
+    local reason="$1"
+    local output
+    output=$(REASON="$reason" python3 -c '
+import json, os
+out = {
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": os.environ["REASON"],
+    }
+}
+print(json.dumps(out, ensure_ascii=False))
+' 2>/dev/null) || true
+
+    if [ -n "$output" ]; then
+        printf '%s\n' "$output"
+    else
+        # Fallback if python3 is unavailable or crashed.
+        # Emit valid deny JSON without python3. Reason is not
+        # escaped — but a malformed reason is better than silently
+        # allowing the tool call through.
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TOTP verification required (python3 unavailable for detailed message)"}}\n'
+    fi
+}
 
 # -------- read-only exit list --------
 #
@@ -140,6 +189,7 @@ fi
 TOOL_NAME=""
 TOOL_FILE_PATH=""
 TOOL_COMMAND=""
+PARSE_FAILED=""
 if [ -n "$INPUT" ]; then
     # Parse all needed fields from JSON in a single python3 invocation.
     # Output: three lines — tool_name, file_path, command — read by bash.
@@ -149,6 +199,15 @@ if [ -n "$INPUT" ]; then
     # but bash 3.2 (macOS default) chokes on $'\0' inside ${...}
     # parameter expansion — TOOL_FILE_PATH was silently empty, breaking
     # config path protection entirely. Lines with read -r are safe.
+    #
+    # Exit-code contract: python exits 0 only on a fully parsed object.
+    # Any failure (no python3, malformed JSON, missing tool_input shape,
+    # I/O error) propagates as a non-zero exit, captured into
+    # PARSE_FAILED below. We then fail safe — see the deny block right
+    # after this section. Without the explicit failure flag, an
+    # unparseable input silently emptied TOOL_NAME/FILE_PATH/COMMAND
+    # and the request fell through into the (looser) normal-window
+    # session check, downgrading config protection.
     _PARSED=$(printf '%s' "$INPUT" | python3 -c '
 import sys, json
 try:
@@ -160,11 +219,11 @@ try:
     print(ti.get("file_path", ""))
     print(ti.get("command", ""))
 except Exception:
-    print("")
-    print("")
-    print("")
-' 2>/dev/null) || _PARSED=""
-    if [ -n "$_PARSED" ]; then
+    raise SystemExit(1)
+' 2>/dev/null)
+    if [ $? -ne 0 ] || [ -z "$_PARSED" ]; then
+        PARSE_FAILED="1"
+    else
         TOOL_NAME=$(printf '%s' "$_PARSED" | sed -n '1p')
         TOOL_FILE_PATH=$(printf '%s' "$_PARSED" | sed -n '2p')
         # command only matters for Bash tool — read it unconditionally
@@ -172,6 +231,18 @@ except Exception:
         TOOL_COMMAND=$(printf '%s' "$_PARSED" | sed -n '3p')
     fi
     unset _PARSED
+fi
+
+# If we received hook input but could not parse it, we have no idea
+# what tool is being invoked. Treating "unknown" as "safe" would let
+# a malformed payload bypass config protection (the previous behaviour
+# downgraded to the loose normal-window check). Deny outright with a
+# clear message, so the human or operator can investigate why python3
+# is missing or what is wrong with the hook input — instead of silently
+# losing the protection layer.
+if [ -n "$PARSE_FAILED" ]; then
+    emit_deny "TOTP hook could not parse the PreToolUse JSON payload (python3 missing or input malformed). Failing safe — fix the host environment, then ask the human owner for a fresh TOTP code and run: ${VERIFY_CMD}"
+    exit 0
 fi
 
 case "$TOOL_NAME" in
@@ -246,34 +317,6 @@ if [ "$EDIT_WRITE_CONFIG_ONLY" = "true" ]; then
     esac
 fi
 
-# -------- helper: emit deny --------
-
-emit_deny() {
-    local reason="$1"
-    local output
-    output=$(REASON="$reason" python3 -c '
-import json, os
-out = {
-    "hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": "deny",
-        "permissionDecisionReason": os.environ["REASON"],
-    }
-}
-print(json.dumps(out, ensure_ascii=False))
-' 2>/dev/null) || true
-
-    if [ -n "$output" ]; then
-        printf '%s\n' "$output"
-    else
-        # Fallback if python3 is unavailable or crashed.
-        # Emit valid deny JSON without python3. Reason is not
-        # escaped — but a malformed reason is better than silently
-        # allowing the tool call through.
-        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TOTP verification required (python3 unavailable for detailed message)"}}\n'
-    fi
-}
-
 # -------- session read (shared by both checks below) --------
 
 SESSION_TS=""
@@ -281,9 +324,16 @@ if [ -r "$SESSION_FILE" ]; then
     SESSION_TS=$(cat "$SESSION_FILE" 2>/dev/null || true)
 fi
 
+# Sanity check before arithmetic: the session file is root-only, so
+# the only ways to see garbage here are a corrupted disk write or a
+# verifier bug. Either way, treating non-numeric content as "session
+# absent" is fail-safe: SESSION_AGE stays empty and the call falls
+# through into a deny. Without this guard, set -u + bash arithmetic
+# would crash with an unhelpful error before reaching the real
+# decision below.
 NOW=$(date +%s)
 SESSION_AGE=""
-if [ -n "$SESSION_TS" ] && [ "$SESSION_TS" != "0" ]; then
+if printf '%s' "$SESSION_TS" | grep -qE '^[0-9]+$' && [ "$SESSION_TS" != "0" ]; then
     SESSION_AGE=$(( NOW - SESSION_TS ))
 fi
 

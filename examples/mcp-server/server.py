@@ -232,7 +232,16 @@ def totp_verify(
             timeout=10,
         )
     except subprocess.TimeoutExpired:
-        raise ToolError("Verify timed out. Check that the core is installed correctly.")
+        raise ToolError(
+            "Verify timed out after 10 s. The most likely cause is that "
+            "another verify instance is holding the brute-force lock at "
+            "/etc/totp-presence/.verify-lock — wait a few seconds and "
+            "try again. If a previous verify was killed mid-run, the "
+            "lock will be reclaimed automatically once it ages past "
+            "the stale threshold (~60 s). Do not retry in a tight loop. "
+            "If timeouts persist, the core may not be installed "
+            "correctly; ask the human to run `./core/setup.sh status`."
+        )
     except FileNotFoundError:
         raise ToolError("sudo not found in PATH.")
 
