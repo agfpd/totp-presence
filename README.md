@@ -1,5 +1,7 @@
 Russian version: [README.ru.md](./README.ru.md)
 
+[![ci](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml/badge.svg)](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml)
+
 # totp-presence
 
 > How an agent can know it is talking to its owner — and not to
@@ -447,7 +449,7 @@ per-version notes.
 **Pre-1.0 roadmap:**
 
 - [x] Test suite ([bats](./tests/README.md)) for core and hook — 49 hook tests + 15 core tests *(implemented, pending next release tag)*
-- [ ] CI with lint + tests (matrix: macOS + Ubuntu)
+- [x] CI with lint + tests (matrix: macOS + Ubuntu) — shellcheck + bats hook suite *(implemented, pending next release tag)*
 - [ ] Live-system installation testing on Linux (Ubuntu + Fedora)
 - [x] `update` mode for `setup.sh` / `install.sh` — preserve seed across upgrades *(implemented, pending next release tag)*
 - [ ] Demo recording (asciinema / gif)

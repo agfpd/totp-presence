@@ -1,5 +1,7 @@
 English version: [README.md](./README.md)
 
+[![ci](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml/badge.svg)](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml)
+
 # totp-presence
 
 > Как агент может знать, что он говорит со своим владельцем — а не с
@@ -446,7 +448,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 **Pre-1.0 roadmap:**
 
 - [x] Тесты ([bats](./tests/README.md)) для ядра и хука — 49 hook-тестов + 15 core-тестов *(реализовано, ждёт следующего тега)*
-- [ ] CI с lint + тестами (матрица: macOS + Ubuntu)
+- [x] CI с lint + тестами (матрица: macOS + Ubuntu) — shellcheck + bats hook-suite *(реализовано, ждёт следующего тега)*
 - [ ] Боевое тестирование установки на Linux (Ubuntu + Fedora)
 - [x] Режим `update` для `setup.sh` / `install.sh` — сохраняет seed при апгрейде *(реализовано, ждёт следующего тега)*
 - [ ] Демо-запись (asciinema / gif)

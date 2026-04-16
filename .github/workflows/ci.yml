@@ -1,0 +1,83 @@
+name: ci
+
+# Runs on every push and pull request against main. Three parallel jobs:
+#   - shellcheck on all .sh files (static analysis)
+#   - bats hook tests on ubuntu-latest (no sudo, sandbox via sed rewrite)
+#   - bats hook tests on macos-latest  (same, validates bash 3.2 + BSD date)
+#
+# Core tests (tests/core/) are not run in CI: they require a live
+# installation of /etc/totp-presence/verify + sudoers NOPASSWD, which
+# needs a paired authenticator. Headless install is on the roadmap.
+# For now, the path-validation regressions that live in tests/core/ are
+# run locally before every release.
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on all .sh files
+        # --severity=warning: info-level hints (SC2015 on A && B || C,
+        # SC2012 ls-vs-find, SC2181 $? style) are acknowledged but not
+        # CI-blocking — they are suggestions, not bugs. Anything at
+        # warning or error level fails the job.
+        # --exclude=SC1091: cannot follow sourced paths from the CI
+        # root; irrelevant today (we don't source any files) but a
+        # forward-looking exclusion if we add shared lib helpers.
+        run: |
+          set -e
+          find . -type f -name '*.sh' -not -path './.git/*' -not -path './tests/*' -print0 \
+            | xargs -0 shellcheck --shell=bash --severity=warning --exclude=SC1091
+
+  hook-tests-ubuntu:
+    name: bats hook tests (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Report environment
+        run: |
+          bats --version
+          bash --version | head -1
+          python3 --version
+
+      - name: Run hook bats suite
+        # tests/hook/ is sandboxed via sed path-rewrite; no sudo, no
+        # /etc/totp-presence, no /var/run/totp-presence on disk.
+        run: bats tests/hook/
+
+  hook-tests-macos:
+    name: bats hook tests (macos-latest)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        run: brew install bats-core
+
+      - name: Report environment
+        # macOS default /bin/bash is 3.2.57 — that's the floor we
+        # document in README Requirements. python3 comes with the
+        # Xcode Command Line Tools preinstalled on GitHub runners.
+        run: |
+          bats --version
+          /bin/bash --version | head -1
+          python3 --version
+
+      - name: Run hook bats suite
+        run: bats tests/hook/

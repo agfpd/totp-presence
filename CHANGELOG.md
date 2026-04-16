@@ -43,6 +43,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `tests/README.md` documents how to run locally (`brew install
     bats-core` on macOS, `apt install bats` on Linux) and how to
     add new tests.
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) — three
+  parallel jobs on every push / PR against main:
+  - `shellcheck` job on ubuntu-latest. Lints every `.sh` file
+    outside `.git/` and `tests/` at `--severity=warning`;
+    info-level hints (SC2015, SC2012, SC2181) are acknowledged but
+    non-blocking.
+  - `hook-tests-ubuntu` — `bats tests/hook/` on ubuntu-latest.
+    Validates bash 4 / GNU utils behaviour.
+  - `hook-tests-macos` — `bats tests/hook/` on macos-latest.
+    Validates the bash 3.2 floor we document in Requirements.
+  Core tests (`tests/core/`) require a paired authenticator and
+  are not yet part of CI; a headless install mode is on the
+  Post-1.0 roadmap.
+- CI build badge in README EN+RU.
 
 ## [0.2.0] — 2026-04-16
 
