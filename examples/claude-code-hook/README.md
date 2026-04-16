@@ -164,7 +164,12 @@ Or manually in `/etc/totp-presence/claude-code-config` (sudo):
 EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment
 ```
 
-Multiple tools separated by `|`.
+Multiple tools separated by `|`. Each tool name must match
+`[a-zA-Z0-9_]+`. The hook re-validates the value on load: a
+malformed `EXTRA_SAFE_TOOLS` (regex metacharacters such as `.*`,
+or any character outside that set) is refused with a one-line note
+on stderr and the call falls into the normal session check, rather
+than silently whitelisting every tool through a wider regex.
 
 With selective lockdown `EXTRA_SAFE_TOOLS` is usually not needed —
 the messaging tool simply does not match the matcher.

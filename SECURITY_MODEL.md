@@ -212,6 +212,13 @@ filesystem is case-insensitive: `Settings.json` resolves to the same
 inode as `settings.json` on disk, so the matcher would otherwise miss
 a write that actually lands on the protected file.
 
+If the hook cannot parse the PreToolUse JSON payload at all (python3
+missing, malformed input, unexpected shape), it denies the call
+outright instead of falling through to the looser normal-window
+session check. The reasoning is the same as the rest of this layer:
+when the matcher cannot tell what the tool is doing, "deny and ask
+the human" is the only fail-safe answer.
+
 **Limitations of the Bash check.** Text search over the command
 string catches direct commands but does not catch obfuscation:
 

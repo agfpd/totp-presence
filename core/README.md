@@ -57,6 +57,13 @@ verifier locks out for 5 minutes. A successful verification resets the
 counter. Concurrent invocations are serialized via an exclusive lock
 (atomic mkdir), so a parallel attacker cannot bypass the counter.
 
+If a verifier was killed mid-flight (SIGKILL, OOM), the lock dir is
+left behind and would normally hold every subsequent verify off for
+the full 30 s timeout. The verifier reclaims a lock that has been
+present longer than ~60 s automatically — `sudo rmdir` is no longer
+needed for that case. A live verify that grabbed the lock in the
+meantime still keeps it.
+
 ### `sudo /etc/totp-presence/verify <code> --session <path>`
 
 Same as above, but on a correct code it **additionally** writes the

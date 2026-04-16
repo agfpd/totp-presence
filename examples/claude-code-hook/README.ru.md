@@ -164,7 +164,12 @@ sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_teleg
 EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment
 ```
 
-Несколько инструментов через `|`.
+Несколько инструментов через `|`. Каждое имя должно соответствовать
+`[a-zA-Z0-9_]+`. Хук перевалидирует значение при загрузке:
+malformed `EXTRA_SAFE_TOOLS` (regex-метасимволы вроде `.*`, либо
+любые символы вне этого набора) отвергается с одной строкой в stderr,
+вызов уходит в обычную сессионную проверку — вместо тихого
+пропуска всех инструментов через более широкий regex.
 
 При выборочной блокировке `EXTRA_SAFE_TOOLS` обычно не нужен —
 messaging-инструмент просто не попадает в matcher.
