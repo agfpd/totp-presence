@@ -446,7 +446,7 @@ per-version notes.
 
 **Pre-1.0 roadmap:**
 
-- [ ] Test suite (bats) for core and hook
+- [x] Test suite ([bats](./tests/README.md)) for core and hook — 49 hook tests + 15 core tests *(implemented, pending next release tag)*
 - [ ] CI with lint + tests (matrix: macOS + Ubuntu)
 - [ ] Live-system installation testing on Linux (Ubuntu + Fedora)
 - [x] `update` mode for `setup.sh` / `install.sh` — preserve seed across upgrades *(implemented, pending next release tag)*

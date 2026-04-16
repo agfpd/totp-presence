@@ -20,6 +20,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the per-user session file. No Claude Code restart required —
   the next tool invocation picks up the new guard.
 - README documents the upgrade path in a new `Updating` section.
+- Bats-core regression test suite in `tests/`:
+  - `tests/hook/` — 49 tests, no sudo. A sandbox under `$TMPDIR`
+    replaces the hardcoded `/etc/totp-presence` and
+    `/var/run/totp-presence` paths so the hook runs against a
+    throwaway install. Covers the read-only exit list
+    (`Read`/`Glob`/`Grep`/`LS`/`TodoWrite`/`WebSearch`/`ToolSearch` +
+    `mcp__totp-presence__*`), normal-window session check,
+    `CONFIG_WINDOW_SECONDS` for protected paths, H1 (APFS
+    case-insensitive matching), H2 (relative-path matching),
+    §5b (Bash command text scan), H3 (`EDIT_WRITE_CONFIG_ONLY`
+    modes), M1 (parse-failure fail-safe deny), M2
+    (`EXTRA_SAFE_TOOLS` injection guard), L3 (session-timestamp
+    sanity), and future-timestamp rejection.
+  - `tests/core/` — 15 tests that exercise the installed
+    `/etc/totp-presence/verify` through its sudoers rule.
+    Non-destructive: all use a shape-valid dummy code and rely on
+    `--session` path validation firing before the TOTP compare.
+    Covers C1 prefix rule, `..` / `//` / subdirectory / suffix
+    rejections, legacy v1 path migration hint, argument-shape
+    validation.
+  - `tests/README.md` documents how to run locally (`brew install
+    bats-core` on macOS, `apt install bats` on Linux) and how to
+    add new tests.
 
 ## [0.2.0] — 2026-04-16
 

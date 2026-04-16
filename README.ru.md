@@ -445,7 +445,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 
 **Pre-1.0 roadmap:**
 
-- [ ] Тесты (bats) для ядра и хука
+- [x] Тесты ([bats](./tests/README.md)) для ядра и хука — 49 hook-тестов + 15 core-тестов *(реализовано, ждёт следующего тега)*
 - [ ] CI с lint + тестами (матрица: macOS + Ubuntu)
 - [ ] Боевое тестирование установки на Linux (Ubuntu + Fedora)
 - [x] Режим `update` для `setup.sh` / `install.sh` — сохраняет seed при апгрейде *(реализовано, ждёт следующего тега)*
