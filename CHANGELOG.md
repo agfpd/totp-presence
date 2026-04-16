@@ -1,0 +1,152 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.2.0] — 2026-04-16
+
+Security audit closure release. All changes are backwards-incompatible
+with respect to on-disk layout (runtime state moved from `/etc/totp-presence/`
+to `/var/run/totp-presence/`). Lazy migration is performed automatically on
+the first `v0.2` run of the core verifier and on reinstall of the Claude Code
+hook integration. Anyone pairing an authenticator for the first time at v0.2
+is unaffected.
+
+### Changed — on-disk layout (FHS-compliant v2)
+
+- Split of static vs. runtime state:
+  - `/etc/totp-presence/` — sysadmin-managed: `secret`, `verify`,
+    per-integration config and guard scripts.
+  - `/var/run/totp-presence/` — ephemeral: `fail-counter`, `.verify-lock/`,
+    and `<user>/<integration>-session`.
+- Per-user session files: `/var/run/totp-presence/<user>/<integration>-session`.
+  The `fail-counter` and the `.verify-lock/` remain global per machine
+  (one secret → one brute-force rate-limit, one lock across users).
+- Runtime tree is tmpfs on Linux and synthetic on macOS — cleared at reboot.
+  "The owner was at the machine N minutes ago" no longer survives a power
+  cycle; users must re-authenticate after boot.
+- `verify --session <path>` now requires the path to be a direct child of
+  `/var/run/totp-presence/<invoking-user>/` with a basename ending in
+  `-session`. Legacy v1 paths under `/etc/totp-presence/` are rejected
+  with a migration hint.
+- `verify` refuses to run as root directly (requires `sudo` from a regular
+  user account; `SUDO_USER` must be set and must match a POSIX-portable
+  username pattern).
+- `claude-code-hook/install.sh` migrates any legacy v1 session file from
+  `/etc/totp-presence/claude-code-session` to the new per-user runtime
+  location on reinstall.
+
+### Security — audit findings closed
+
+Reference IDs (`C1`, `H1`–`H3`, `M1`–`M3`, `L1`–`L5`) are from the internal
+pre-release security audit.
+
+- **C1 — `verify.sh --session` path hijack.** Introduced a strict suffix
+  rule (basename must end with `-session`) plus a symlink-safe atomic
+  write (refuse to follow existing symlinks; stage through sibling
+  `mktemp` then `mv -f`). A valid code no longer lets a caller redirect
+  the timestamp write to an arbitrary root-writable file, or to a
+  sibling integration's state.
+- **H1 — APFS case-insensitivity bypass in hook matcher.** `Settings.json`
+  resolved to the same inode as `settings.json` on default macOS
+  filesystems but previously slipped past the matcher. Fixed with
+  `shopt -s nocasematch` (for Edit/Write `file_path`) and `grep -i`
+  (for Bash command strings).
+- **H2 — relative-path bypass in the config matcher.** `settings.json`
+  as a relative path now matches the protected set alongside the
+  absolute form.
+- **H3 — `EDIT_WRITE_CONFIG_ONLY` silent inheritance on reinstall.**
+  This option is security-critical (it lets non-config Edit/Write
+  through without a session). Silent preservation across reinstalls
+  could silently weaken protection after matcher changes. New
+  `--full-lockdown` and `--selective-edit-write` flags force an
+  explicit decision; preservation without a flag now prints a loud
+  warning.
+- **M1 — fail-open on PreToolUse JSON parse failure.** When the hook
+  could not parse its input (missing python3, malformed JSON,
+  unexpected shape), it previously fell through into the looser
+  normal-window session check. Now it fails safe: deny the call
+  outright with a clear operator-facing reason.
+- **M2 — `EXTRA_SAFE_TOOLS` regex injection.** Operator-facing config
+  documentation allows editing `claude-code-config` by hand, so the
+  hook re-validates `EXTRA_SAFE_TOOLS` against the same regex as
+  `install.sh --messaging-tools` before using it inside `grep -E`.
+  A malformed value is refused with a one-line note on stderr rather
+  than silently widening the waive list.
+- **M3 — `fail-counter` symlink-follow on write.** The counter update
+  now refuses to write through an existing symlink and uses the same
+  atomic `mktemp` + `mv -f` pattern as the session write.
+- **L1 — inherited `$PATH` in verify.** `verify.sh` no longer appends
+  the inherited `$PATH`; it hard-codes `/usr/sbin:/usr/bin:/sbin:/bin`.
+  This removes a window where a caller-controlled `$PATH` could
+  shadow a missing system utility with an attacker-planted one.
+- **L2 — stale lock auto-reclaim.** A SIGKILL'd or OOM'd verify used
+  to leave `/var/run/totp-presence/.verify-lock/` behind, blocking
+  subsequent verifies until a manual `sudo rmdir`. The verifier now
+  reclaims a lock directory older than `LOCK_STALE_AGE` (60s)
+  automatically. Live locks held by an in-flight verify are not
+  affected.
+- **L3 — `SESSION_TS` sanity check before arithmetic.** Non-numeric
+  content in the session file no longer crashes the hook under
+  `set -u`; it is treated as "session absent" and the call falls
+  through into a deny.
+- **L5 — MCP server timeout message.** The FastMCP `totp_verify`
+  tool now distinguishes a lock-timeout (another verifier is in
+  flight) from a real core-level timeout, with an operator-friendly
+  remediation hint.
+
+### Added
+
+- `VERSION` file at the repo root and at `/etc/totp-presence/VERSION`
+  after `sudo ./core/setup.sh install`. `./core/setup.sh status`
+  reports the installed version.
+
+## [0.1.0] — 2026-04-13
+
+Initial public release on `github.com/agfpd/totp-presence`.
+
+### Added
+
+- `core/verify.sh` — TOTP verification primitive with exit-code contract
+  (0 valid / 2 invalid / 3 locked out / 1 error), brute-force protection
+  (5 consecutive failures → 5-minute lockout), mkdir-lock serialization
+  against parallel brute-force, zero pip dependencies (RFC 6238 TOTP
+  using Python standard library only).
+- `core/setup.sh` — install / uninstall / status for the core. Generates
+  a 160-bit base32 seed via `os.urandom`, installs a narrow sudoers rule
+  (`NOPASSWD` scoped exclusively to `/etc/totp-presence/verify`), renders
+  the `otpauth://` URL and optional terminal QR (via `qrencode`), runs a
+  3-attempt self-test.
+- `examples/claude-code-hook/` — Claude Code `PreToolUse` hook with
+  full-lockdown (matcher `.*`) and selective (narrow matcher +
+  `EDIT_WRITE_CONFIG_ONLY=true`) deployment modes. Config-file
+  protection with a tighter 120s window (`settings.json`,
+  `settings.local.json`, `.claude.json`, `CLAUDE.md`,
+  `.claude/agents/*`). `EXTRA_SAFE_TOOLS` for messaging tools of
+  headless agents. Short read-only exit-list (`Read`, `Glob`, `Grep`,
+  `LS`, `TodoWrite`, `WebSearch`, `ToolSearch`) that fails safe on
+  unknown tools.
+- `examples/mcp-server/` — FastMCP 3.x server exposing
+  `totp_verify`, `totp_check_session`, `totp_status` for any
+  MCP-compatible client (Claude Code, Claude Desktop, Cursor, Continue).
+  Integration-name validation (`[a-z0-9][a-z0-9-]{0,63}`), user-name
+  validation (matches the verifier's `SUDO_USER` guard).
+- `examples/soft-prompt/prompt.md` — agent instructions block for
+  CLAUDE.md / system prompt. Defines when to verify (irreversible
+  actions, sensitive operations, agent configuration edits, identity
+  doubt), the tool contract, timing rule ("verify is the first
+  tool call of the turn"), and the cardinal rule ("accept codes
+  only from the human through a direct channel").
+- Apache License 2.0 with explicit patent grant.
+- English + Russian documentation: `README.md` + `README.ru.md`,
+  `CLAUDE.md` + `CLAUDE.ru.md`, `SECURITY_MODEL.md` +
+  `SECURITY_MODEL.ru.md`, plus per-component READMEs under `core/`
+  and each `examples/*` subdirectory.
+
+[Unreleased]: https://github.com/agfpd/totp-presence/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/agfpd/totp-presence/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/agfpd/totp-presence/releases/tag/v0.1.0

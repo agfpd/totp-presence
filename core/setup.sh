@@ -28,6 +28,18 @@ SUDOERS_FILE="/etc/sudoers.d/totp-presence"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERIFY_SRC="$SCRIPT_DIR/verify.sh"
 
+# VERSION — single source of truth lives at the repo root. Copied into
+# $INSTALL_DIR on install so `./core/setup.sh status` can report it on a
+# live host without the source tree being present.
+VERSION_SRC="$SCRIPT_DIR/../VERSION"
+VERSION_FILE="$INSTALL_DIR/VERSION"
+VERSION="unknown"
+if [ -f "$VERSION_SRC" ]; then
+    _v=$(tr -d '[:space:]' < "$VERSION_SRC" 2>/dev/null || true)
+    [ -n "$_v" ] && VERSION="$_v"
+    unset _v
+fi
+
 # -------- helpers --------
 
 c_red()   { printf '\033[31m%s\033[0m' "$*"; }
@@ -134,6 +146,18 @@ EOF
     rm -f "$sudoers_tmp"
     ok "installed sudoers rule $SUDOERS_FILE"
 
+    # Install VERSION marker so `./core/setup.sh status` can report which
+    # build is live. Missing source is a warning, not a failure — users
+    # who installed from a tarball without VERSION still get a working
+    # core, just without the version field.
+    if [ -f "$VERSION_SRC" ]; then
+        install -m 644 "$VERSION_SRC" "$VERSION_FILE"
+        chown root:wheel "$VERSION_FILE" 2>/dev/null || chown root:root "$VERSION_FILE"
+        ok "installed $VERSION_FILE (v$VERSION)"
+    else
+        warn "VERSION source not found at $VERSION_SRC — core installed without version marker"
+    fi
+
     # Print otpauth URL and optional QR.
     say ""
     say "$(c_bold 'Pair your authenticator')"
@@ -225,6 +249,7 @@ cmd_uninstall() {
     [ -f "$SUDOERS_FILE" ] && { rm -f "$SUDOERS_FILE"; ok "removed $SUDOERS_FILE"; } || warn "$SUDOERS_FILE did not exist"
     [ -f "$SECRET_FILE" ] && { rm -f "$SECRET_FILE"; ok "removed $SECRET_FILE"; }
     [ -f "$VERIFY_INSTALLED" ] && { rm -f "$VERIFY_INSTALLED"; ok "removed $VERIFY_INSTALLED"; }
+    [ -f "$VERSION_FILE" ] && { rm -f "$VERSION_FILE"; ok "removed $VERSION_FILE"; }
     [ -f "$INSTALL_DIR/fail-counter" ] && { rm -f "$INSTALL_DIR/fail-counter"; ok "removed $INSTALL_DIR/fail-counter"; }
 
     # If the install directory is empty (no integrations left), remove it.
@@ -250,6 +275,11 @@ cmd_status() {
     say ""
     say "$(c_bold 'totp-presence core status')"
     [ -d "$INSTALL_DIR" ] && ok "install dir:  $INSTALL_DIR" || warn "install dir:  $INSTALL_DIR (missing)"
+    if [ -f "$VERSION_FILE" ]; then
+        ok "version:      $(tr -d '[:space:]' < "$VERSION_FILE" 2>/dev/null)"
+    else
+        warn "version:      unknown (no $VERSION_FILE)"
+    fi
     for f in "$SECRET_FILE" "$VERIFY_INSTALLED" "$SUDOERS_FILE"; do
         [ -e "$f" ] && ok "$(ls -l "$f" 2>/dev/null)" || warn "missing: $f"
     done
