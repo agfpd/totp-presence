@@ -253,14 +253,19 @@ sudo /etc/totp-presence/verify 123456
 
 # Проверить код и открыть сессию — записывает метку времени в файл
 sudo /etc/totp-presence/verify 123456 \
-     --session /etc/totp-presence/claude-code-session
+     --session /var/run/totp-presence/$USER/claude-code-session
 ```
 
+Layout соответствует FHS: статические файлы (секрет, верификатор,
+конфиги интеграций) живут под `/etc/totp-presence/`; runtime-state
+(метки времени сессий, brute-force counter, lock) — под
+`/var/run/totp-presence/`, scoped per user и очищается при reboot.
+
 Путь для `--session` жёстко валидируется: допускается только файл
-внутри `/etc/totp-presence/`, имя которого оканчивается на `-session` —
-ничего другого через верификатор не перезаписать, а сама запись
-атомарна и отказывается следовать симлинкам. Подробнее —
-[core/README.ru.md](./core/README.ru.md).
+внутри `/var/run/totp-presence/<invoking-user>/`, имя которого
+оканчивается на `-session` — ничего другого через верификатор не
+перезаписать, а сама запись атомарна и отказывается следовать
+симлинкам. Подробнее — [core/README.ru.md](./core/README.ru.md).
 
 ### Интеграции (`examples/`)
 
@@ -292,8 +297,10 @@ sudo /etc/totp-presence/verify 123456 \
 <details>
 <summary>Как написать свою интеграцию</summary>
 
-1. Выбрать имя файла сессии (например,
-   `/etc/totp-presence/my-agent-session`).
+1. Выбрать имя файла сессии. Путь должен оканчиваться на `-session`
+   и лежать в per-user runtime-директории, например
+   `/var/run/totp-presence/<user>/my-agent-session`. Верификатор
+   создаст директорию lazy при первом успешном коде.
 2. Решить, как долго сессия считается свежей (скользящее окно,
    проверка на каждое действие, и т.п.).
 3. В точке проверки читать файл сессии и сравнивать метку времени

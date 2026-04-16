@@ -56,11 +56,11 @@ totp_status()
 blocked by the hook):
 ```sh
 # Check session: compare age with the window from configuration
-cat /etc/totp-presence/<integration>-session     # timestamp
-cat /etc/totp-presence/<integration>-config      # WINDOW_SECONDS
+cat /var/run/totp-presence/$USER/<integration>-session   # timestamp
+cat /etc/totp-presence/<integration>-config              # WINDOW_SECONDS
 
 # Verify a code and open a session
-sudo /etc/totp-presence/verify <code> --session /etc/totp-presence/<integration>-session
+sudo /etc/totp-presence/verify <code> --session /var/run/totp-presence/$USER/<integration>-session
 ```
 
 ### Timing: verify is the first action

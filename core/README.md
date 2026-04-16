@@ -22,18 +22,33 @@ After installation (`sudo ./core/setup.sh install`) the following
 appears on disk:
 
 ```
-/etc/totp-presence/
-├── secret           root:wheel 600 — secret key (base32)
-└── verify           root:wheel 755 — verifier
+/etc/totp-presence/                    static, sysadmin-managed
+├── secret                             root:wheel 600 — secret key (base32)
+└── verify                             root:wheel 755 — verifier
 
-/etc/sudoers.d/totp-presence        root:wheel 440 — passwordless sudo for verify
+/etc/sudoers.d/totp-presence           root:wheel 440 — passwordless sudo for verify
 ```
 
-Three artifacts under root. That is all.
+Three artifacts under root. That is all the static install.
 
-During operation `/etc/totp-presence/fail-counter` (root:wheel 644)
-may also appear — a counter of failed attempts for brute-force
-protection. Created automatically, reset upon successful verification.
+During operation the following ephemeral runtime tree is created
+lazily (tmpfs on Linux, synthetic filesystem on macOS — cleared on
+reboot):
+
+```
+/var/run/totp-presence/                root:wheel 755 — runtime base
+├── fail-counter                       root:wheel 644 — failed-attempt counter (global)
+├── .verify-lock/                      root:wheel     — concurrency lock (global)
+└── <user>/                            root:wheel 755 — per-user namespace
+    └── <integration>-session          root:wheel 644 — session timestamp (per-integration)
+```
+
+Per-machine for the lock and counter (one secret → one global
+rate-limit), per-user for sessions (each user holds their own
+presence signal). Reboot clears every runtime artefact; after a
+reboot the user must re-authenticate. This is intentional:
+"the owner was at the machine N minutes ago" should not survive a
+power cycle.
 
 ## Public API
 
@@ -70,14 +85,19 @@ Same as above, but on a correct code it **additionally** writes the
 current timestamp (unix timestamp) to the specified file. The path is
 strictly validated:
 
-- must be inside `/etc/totp-presence/`
-- must be a direct child of the directory (no subdirectories)
+- must be inside `/var/run/totp-presence/<invoking-user>/`
+  (where `<invoking-user>` is taken from `SUDO_USER` — running verify
+  as root directly is rejected)
+- must be a direct child of that per-user directory (no subdirectories)
 - no `..`, no `//`
 - basename must end with `-session` (so a caller cannot redirect the
-  write to the secret, the verifier itself, an integration's hook, or
-  the fail-counter — any of which would silently brick the protection
-  the verifier is meant to provide)
+  write to a sibling integration's state, or to anything else under
+  the runtime tree)
 - must not be a symlink
+
+The per-user runtime directory is created lazily by the verifier on
+the first successful code — the integration installer does not need
+to create it.
 
 The write itself is atomic and symlink-safe: contents are staged in a
 sibling temp file (`mktemp` in the same directory), the ownership and
@@ -91,7 +111,7 @@ The path and name are chosen by the integration:
 
 ```sh
 sudo /etc/totp-presence/verify 123456 \
-     --session /etc/totp-presence/claude-code-session
+     --session /var/run/totp-presence/$USER/claude-code-session
 ```
 
 ## What the core does NOT do
@@ -116,26 +136,29 @@ echo $?                                  # 0 = correct, 2 = incorrect
 
 # 2. Verification + session — writes a timestamp to a file
 sudo /etc/totp-presence/verify 123456 \
-     --session /etc/totp-presence/test-session
-ls -l /etc/totp-presence/test-session    # root:wheel 644
-cat /etc/totp-presence/test-session      # unix timestamp
+     --session /var/run/totp-presence/$USER/test-session
+ls -l /var/run/totp-presence/$USER/test-session    # root:wheel 644
+cat /var/run/totp-presence/$USER/test-session      # unix timestamp
 
 # cleanup
-sudo rm /etc/totp-presence/test-session
+sudo rm /var/run/totp-presence/$USER/test-session
 ```
 
 ## How to write your own integration
 
 Minimum:
 
-1. Choose a session file name inside `/etc/totp-presence/`, e.g.
-   `my-integration-session`.
+1. Choose a session file name. The path must end with `-session` and
+   live under the per-user runtime directory, e.g.
+   `/var/run/totp-presence/<user>/my-integration-session`. The
+   verifier will create the directory lazily on the first successful
+   code.
 2. At every check point, read this file and compare the timestamp to
    the current time minus the window duration.
 3. When the session has expired — instruct the user or agent to
    execute:
    ```sh
-   sudo /etc/totp-presence/verify <code> --session /etc/totp-presence/my-integration-session
+   sudo /etc/totp-presence/verify <code> --session /var/run/totp-presence/$USER/my-integration-session
    ```
 4. That is all. The core handles the rest.
 

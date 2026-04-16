@@ -80,9 +80,12 @@ Especially valuable when:
 ### Requirements
 
 1. Core: `sudo ./core/setup.sh install`
-2. At least one integration with session files (e.g.
+2. At least one integration installed (e.g.
    `sudo ./examples/claude-code-hook/install.sh` creates
-   `claude-code-session` and `claude-code-config`)
+   `/etc/totp-presence/claude-code-config` and registers the
+   integration; the matching session file is created lazily under
+   `/var/run/totp-presence/<user>/claude-code-session` on the first
+   successful TOTP code).
 3. Python 3.9+ and FastMCP:
    ```sh
    pip3 install fastmcp
@@ -118,12 +121,13 @@ MCP server; the command and arguments are the same.
 ## Integration naming
 
 An integration name is a short string matching `[a-z0-9][a-z0-9-]{0,63}`.
-It corresponds to the file name prefix in `/etc/totp-presence/`:
+It corresponds to the file name prefix used across the static and
+runtime trees:
 
-| Name | Session file | Configuration file |
-|---|---|---|
-| `claude-code` | `claude-code-session` | `claude-code-config` |
-| `aider` | `aider-session` | `aider-config` |
+| Name | Configuration file (static)              | Session file (runtime, per-user)                           |
+|---|------------------------------------------|------------------------------------------------------------|
+| `claude-code` | `/etc/totp-presence/claude-code-config`  | `/var/run/totp-presence/<user>/claude-code-session`        |
+| `aider`       | `/etc/totp-presence/aider-config`        | `/var/run/totp-presence/<user>/aider-session`              |
 
 Names containing `..`, `/`, or uppercase letters are rejected by the
 server. The core additionally validates the path on its side — a
@@ -142,8 +146,11 @@ only for `/etc/totp-presence/verify`.
   to the core.
 - **Does not write the session directly** — only through the core upon
   a correct code.
-- **Does not create integrations** — if a session does not exist, it
-  returns an error.
+- **Does not create integrations** — if a config file for the named
+  integration does not exist, it returns an error. The session file
+  itself may legitimately be absent (it is created lazily by the
+  verifier on the first successful code) and is not used as the
+  installation marker.
 - **Does not install itself** into client configurations — added
   manually.
 
@@ -152,8 +159,8 @@ only for `/etc/totp-presence/verify`.
 **`sudo: a password is required`** — the sudoers rule is not
 installed. Check: `./core/setup.sh status`.
 
-**`integration 'X' is not installed`** — the file
-`/etc/totp-presence/X-session` is missing. Invoke `totp_status` to
+**`integration 'X' is not installed`** — the config file
+`/etc/totp-presence/X-config` is missing. Invoke `totp_status` to
 see available integrations.
 
 **`fastmcp package not installed`** — `pip3 install fastmcp`. If

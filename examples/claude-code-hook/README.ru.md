@@ -8,13 +8,20 @@ English version: [README.md](./README.md)
 
 ## Что устанавливается
 
-Три файла, все принадлежат root:
+Два статических файла под root, плюс runtime-файл сессии,
+создаваемый lazy при первом успешном TOTP-коде:
 
 ```
-/etc/totp-presence/claude-code-guard.sh     root:wheel 755 — хук
-/etc/totp-presence/claude-code-session      root:wheel 644 — метка времени сессии
-/etc/totp-presence/claude-code-config       root:wheel 644 — настройки интеграции
+/etc/totp-presence/claude-code-guard.sh                  root:wheel 755 — хук
+/etc/totp-presence/claude-code-config                    root:wheel 644 — настройки интеграции
+
+/var/run/totp-presence/<user>/claude-code-session        root:wheel 644 — метка времени сессии
+                                                                          (lazy-create, очищается при reboot)
 ```
+
+Файл сессии живёт под per-user runtime-деревом (tmpfs на Linux,
+synthetic на macOS) и поэтому ephemeral by design: reboot машины
+очищает любые сессии, и пользователь должен заново аутентифицироваться.
 
 Своего sudoers-правила интеграция не добавляет — использует
 правило ядра для `verify`.
@@ -44,9 +51,7 @@ sudo ./examples/claude-code-hook/install.sh --selective-edit-write
 Установщик:
 
 1. Копирует `guard.sh` в `/etc/totp-presence/claude-code-guard.sh`.
-2. Создаёт `claude-code-session` с нулевой меткой (сессия сразу
-   просрочена).
-3. Пишет `claude-code-config` с `WINDOW_SECONDS` и опционально
+2. Пишет `claude-code-config` с `WINDOW_SECONDS` и опционально
    `EXTRA_SAFE_TOOLS` и `EDIT_WRITE_CONFIG_ONLY`. При переустановке
    `EXTRA_SAFE_TOOLS` из существующего конфига сохраняется тихо,
    если не переопределён флагом. `EDIT_WRITE_CONFIG_ONLY` тоже
@@ -56,7 +61,15 @@ sudo ./examples/claude-code-hook/install.sh --selective-edit-write
    переустановке — это footgun. Передай `--full-lockdown` чтобы
    принудительно выключить, или `--selective-edit-write` чтобы
    принудительно включить и заглушить warning.
-4. Печатает JSON-сниппет для `~/.claude/settings.json`. Его нужно
+3. Если обнаружен legacy v1 файл сессии
+   (`/etc/totp-presence/claude-code-session`), он переезжает в новое
+   per-user runtime-местоположение и legacy-файл удаляется. Сессии
+   и brute-force counter больше не хранятся под `/etc/totp-presence/`.
+4. НЕ создаёт файл сессии заранее — верификатор создаёт его lazy
+   при первом успешном TOTP-коде по адресу
+   `/var/run/totp-presence/<user>/claude-code-session`. Хук трактует
+   отсутствующий файл сессии как «сессия никогда не открывалась» (deny).
+5. Печатает JSON-сниппет для `~/.claude/settings.json`. Его нужно
    добавить вручную — Claude Code попросит явное подтверждение.
 
 > **Порядок первого запуска.** Если используется полная блокировка
@@ -73,11 +86,12 @@ sudo ./examples/claude-code-hook/install.sh --selective-edit-write
 и выполняет:
 
 ```sh
-sudo /etc/totp-presence/verify 123456 --session /etc/totp-presence/claude-code-session
+sudo /etc/totp-presence/verify 123456 --session /var/run/totp-presence/$USER/claude-code-session
 ```
 
-Ядро проверяет код и записывает метку времени в файл сессии. Хук
-при следующем вызове увидит свежую сессию и пропустит инструмент.
+Ядро проверяет код и записывает метку времени в файл сессии (создавая
+per-user директорию при первом использовании). Хук при следующем
+вызове увидит свежую сессию и пропустит инструмент.
 
 ## Два режима блокировки
 

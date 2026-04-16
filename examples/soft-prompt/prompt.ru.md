@@ -57,11 +57,11 @@ totp_status()
 Bash не заблокирован хуком):
 ```sh
 # Проверить сессию: сравнить возраст с окном из конфигурации
-cat /etc/totp-presence/<integration>-session     # метка времени
-cat /etc/totp-presence/<integration>-config      # WINDOW_SECONDS
+cat /var/run/totp-presence/$USER/<integration>-session   # метка времени
+cat /etc/totp-presence/<integration>-config              # WINDOW_SECONDS
 
 # Верифицировать код и открыть сессию
-sudo /etc/totp-presence/verify <код> --session /etc/totp-presence/<integration>-session
+sudo /etc/totp-presence/verify <код> --session /var/run/totp-presence/$USER/<integration>-session
 ```
 
 ### Timing: verify — первое действие

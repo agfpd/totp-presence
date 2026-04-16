@@ -101,6 +101,12 @@ was required.
 
 **Mitigation, time-based:** keep the session window short.
 
+**Mitigation, reboot:** session files live under `/var/run/totp-presence/`,
+which is tmpfs on Linux and a synthetic filesystem on macOS — both are
+cleared on reboot. After a power cycle no session survives, and the
+user must re-authenticate before any protected tool runs again. This
+caps the worst-case window at "since the last reboot."
+
 **Mitigation, configuration protection:** in `claude-code-hook`,
 editing files that control agent security (`settings.json`,
 `settings.local.json`, `.claude.json`, `CLAUDE.md`,

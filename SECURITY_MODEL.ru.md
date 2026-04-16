@@ -101,6 +101,13 @@ shell-скрипт.
 
 **Mitigation, по времени:** держать окно сессии коротким.
 
+**Mitigation, reboot:** файлы сессий живут под
+`/var/run/totp-presence/`, что является tmpfs на Linux и synthetic
+filesystem на macOS — оба очищаются при reboot. После power cycle ни
+одна сессия не выживает, и пользователь должен заново
+аутентифицироваться перед любым защищённым инструментом. Это
+ограничивает worst-case окно «с последнего reboot».
+
 **Mitigation, защита конфигурации:** в `claude-code-hook` правка
 файлов, контролирующих безопасность агента (`settings.json`,
 `settings.local.json`, `.claude.json`, `CLAUDE.md`,

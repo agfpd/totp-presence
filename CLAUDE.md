@@ -112,9 +112,12 @@ phone time match. Re-verification:
 sudo ./examples/claude-code-hook/install.sh
 ```
 
-Creates three files in `/etc/totp-presence/`: the hook, the session
-file, and the configuration. All owned by root. Prints a JSON snippet
-for the hook — **do not add it yet**.
+Creates two static files in `/etc/totp-presence/`: the hook and the
+configuration (`claude-code-guard.sh` and `claude-code-config`, both
+root-owned). The session file is created lazily by the verifier on
+the first successful TOTP code at
+`/var/run/totp-presence/<user>/claude-code-session`. Prints a JSON
+snippet for the hook — **do not add it yet**.
 
 ### Step 4. Connect the MCP server
 

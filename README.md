@@ -252,14 +252,19 @@ sudo /etc/totp-presence/verify 123456
 
 # Verify a code and open a session — writes a timestamp to a file
 sudo /etc/totp-presence/verify 123456 \
-     --session /etc/totp-presence/claude-code-session
+     --session /var/run/totp-presence/$USER/claude-code-session
 ```
 
+Layout follows FHS: static files (the secret, the verifier, integration
+configs) live under `/etc/totp-presence/`; runtime state (session
+timestamps, the brute-force counter, the lock) lives under
+`/var/run/totp-presence/`, scoped per user and cleared on reboot.
+
 The `--session` path is strictly validated: only files directly inside
-`/etc/totp-presence/` whose name ends with `-session` are allowed —
-nothing else can be overwritten through the verifier, and the write
-itself is atomic and refuses to follow symlinks. Details —
-[core/README.md](./core/README.md).
+`/var/run/totp-presence/<invoking-user>/` whose name ends with
+`-session` are allowed — nothing else can be overwritten through the
+verifier, and the write itself is atomic and refuses to follow
+symlinks. Details — [core/README.md](./core/README.md).
 
 ### Integrations (`examples/`)
 
@@ -290,8 +295,10 @@ of invoking a shell command can use it.
 <details>
 <summary>How to write your own integration</summary>
 
-1. Choose a session file name (e.g.,
-   `/etc/totp-presence/my-agent-session`).
+1. Choose a session file name. The path must end with `-session` and
+   live under the per-user runtime directory, e.g.
+   `/var/run/totp-presence/<user>/my-agent-session`. The verifier
+   creates the directory lazily on the first successful code.
 2. Decide how long a session is considered fresh (sliding window,
    per-action check, etc.).
 3. At every check point, read the session file and compare the

@@ -20,18 +20,32 @@ core/
 После установки (`sudo ./core/setup.sh install`) на диске появляется:
 
 ```
-/etc/totp-presence/
-├── secret           root:wheel 600 — секретный ключ (base32)
-└── verify           root:wheel 755 — верификатор
+/etc/totp-presence/                    статика, sysadmin-managed
+├── secret                             root:wheel 600 — секретный ключ (base32)
+└── verify                             root:wheel 755 — верификатор
 
-/etc/sudoers.d/totp-presence        root:wheel 440 — sudo без пароля для verify
+/etc/sudoers.d/totp-presence           root:wheel 440 — sudo без пароля для verify
 ```
 
-Три артефакта под root. Всё.
+Три артефакта под root. Это вся статическая инсталляция.
 
-При работе также может появиться `/etc/totp-presence/fail-counter`
-(root:wheel 644) — счётчик неудачных попыток для защиты от перебора.
-Создаётся автоматически, сбрасывается при успешной проверке.
+При работе создаётся ephemeral runtime-дерево (tmpfs на Linux,
+synthetic FS на macOS — очищается при reboot):
+
+```
+/var/run/totp-presence/                root:wheel 755 — runtime base
+├── fail-counter                       root:wheel 644 — счётчик неудач (глобальный)
+├── .verify-lock/                      root:wheel     — concurrency lock (глобальный)
+└── <user>/                            root:wheel 755 — per-user namespace
+    └── <integration>-session          root:wheel 644 — метка сессии (per-integration)
+```
+
+Per-machine для lock и counter (один секрет → один глобальный
+rate-limit), per-user для сессий (каждый пользователь держит свой
+presence signal). Reboot очищает все runtime-артефакты; после
+перезагрузки пользователь должен заново аутентифицироваться. Это
+намеренно: «владелец был у машины N минут назад» не должно
+переживать power cycle.
 
 ## Публичный API
 
@@ -68,14 +82,18 @@ core/
 метку времени (unix timestamp) в указанный файл. Путь жёстко
 валидируется:
 
-- должен быть внутри `/etc/totp-presence/`
-- должен быть прямым потомком каталога (без подкаталогов)
+- должен быть внутри `/var/run/totp-presence/<invoking-user>/`
+  (где `<invoking-user>` берётся из `SUDO_USER` — запуск verify под
+  root напрямую отвергается)
+- должен быть прямым потомком этой per-user директории (без подкаталогов)
 - без `..`, без `//`
 - basename должен оканчиваться на `-session` (чтобы вызывающий не мог
-  перенаправить запись на секрет, на сам верификатор, на хук
-  интеграции или на fail-counter — любое из этого бесшумно сломало
-  бы ту защиту, которую верификатор должен обеспечивать)
+  перенаправить запись на состояние соседней интеграции или на
+  что-либо ещё под runtime-деревом)
 - не должен быть симлинком
+
+Per-user runtime-директория создаётся lazy верификатором при первом
+успешном коде — install.sh интеграции её не создаёт.
 
 Сама запись атомарная и symlink-safe: содержимое сначала пишется в
 соседний временный файл (`mktemp` в той же директории), права и
@@ -89,7 +107,7 @@ core/
 
 ```sh
 sudo /etc/totp-presence/verify 123456 \
-     --session /etc/totp-presence/claude-code-session
+     --session /var/run/totp-presence/$USER/claude-code-session
 ```
 
 ## Что ядро НЕ делает
@@ -114,26 +132,28 @@ echo $?                                  # 0 = верный, 2 = неверны�
 
 # 2. Проверка + сессия — записывает метку времени в файл
 sudo /etc/totp-presence/verify 123456 \
-     --session /etc/totp-presence/test-session
-ls -l /etc/totp-presence/test-session    # root:wheel 644
-cat /etc/totp-presence/test-session      # unix timestamp
+     --session /var/run/totp-presence/$USER/test-session
+ls -l /var/run/totp-presence/$USER/test-session    # root:wheel 644
+cat /var/run/totp-presence/$USER/test-session      # unix timestamp
 
 # чистим
-sudo rm /etc/totp-presence/test-session
+sudo rm /var/run/totp-presence/$USER/test-session
 ```
 
 ## Как написать свою интеграцию
 
 Минимум:
 
-1. Выбрать имя файла сессии внутри `/etc/totp-presence/`, например
-   `my-integration-session`.
+1. Выбрать имя файла сессии. Путь должен оканчиваться на `-session`
+   и лежать в per-user runtime-директории, например
+   `/var/run/totp-presence/<user>/my-integration-session`. Верификатор
+   создаст директорию lazy при первом успешном коде.
 2. При каждой точке проверки читать этот файл и сравнивать метку
    времени с текущим временем минус длительность окна.
 3. Когда сессия просрочена — выдать пользователю или агенту
    инструкцию выполнить:
    ```sh
-   sudo /etc/totp-presence/verify <код> --session /etc/totp-presence/my-integration-session
+   sudo /etc/totp-presence/verify <код> --session /var/run/totp-presence/$USER/my-integration-session
    ```
 4. Всё. Ядро сделает остальное.
 

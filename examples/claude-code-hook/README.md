@@ -8,13 +8,20 @@ TOTP code.
 
 ## What gets installed
 
-Three files, all owned by root:
+Two static files under root, plus a runtime session file created lazily
+on the first successful TOTP code:
 
 ```
-/etc/totp-presence/claude-code-guard.sh     root:wheel 755 — hook
-/etc/totp-presence/claude-code-session      root:wheel 644 — session timestamp
-/etc/totp-presence/claude-code-config       root:wheel 644 — integration settings
+/etc/totp-presence/claude-code-guard.sh                  root:wheel 755 — hook
+/etc/totp-presence/claude-code-config                    root:wheel 644 — integration settings
+
+/var/run/totp-presence/<user>/claude-code-session        root:wheel 644 — session timestamp
+                                                                          (lazy-create, cleared on reboot)
 ```
+
+The session file lives under the per-user runtime tree (tmpfs on
+Linux, synthetic on macOS) and is therefore ephemeral by design: a
+machine reboot clears every session and the user must re-authenticate.
 
 The integration does not add its own sudoers rule — it uses the core's
 rule for `verify`.
@@ -44,9 +51,7 @@ sudo ./examples/claude-code-hook/install.sh --selective-edit-write
 The installer:
 
 1. Copies `guard.sh` to `/etc/totp-presence/claude-code-guard.sh`.
-2. Creates `claude-code-session` with a zero timestamp (session is
-   immediately expired).
-3. Writes `claude-code-config` with `WINDOW_SECONDS` and optionally
+2. Writes `claude-code-config` with `WINDOW_SECONDS` and optionally
    `EXTRA_SAFE_TOOLS` and `EDIT_WRITE_CONFIG_ONLY`. On reinstallation,
    `EXTRA_SAFE_TOOLS` from the existing config is preserved silently
    if not overridden by a flag. `EDIT_WRITE_CONFIG_ONLY` is
@@ -56,7 +61,15 @@ The installer:
    inheritance across reinstalls is a footgun. Pass
    `--full-lockdown` to force it off, or `--selective-edit-write`
    to force it on and silence the warning.
-4. Prints a JSON snippet for `~/.claude/settings.json`. It must be
+3. If a legacy v1 session file (`/etc/totp-presence/claude-code-session`)
+   is detected, it is moved to the new per-user runtime location and
+   the legacy file is removed. Sessions and the brute-force counter
+   are no longer stored under `/etc/totp-presence/`.
+4. Does NOT pre-create the session file — the verifier creates it
+   lazily on the first successful TOTP code at
+   `/var/run/totp-presence/<user>/claude-code-session`. The hook
+   treats a missing session file as "session never opened" (deny).
+5. Prints a JSON snippet for `~/.claude/settings.json`. It must be
    added manually — Claude Code will ask for explicit confirmation.
 
 > **First-run order.** If using full lockdown (matcher `.*`), the
@@ -72,12 +85,12 @@ the hook returns a rejection with the exact command. The agent asks
 the owner for a code and executes:
 
 ```sh
-sudo /etc/totp-presence/verify 123456 --session /etc/totp-presence/claude-code-session
+sudo /etc/totp-presence/verify 123456 --session /var/run/totp-presence/$USER/claude-code-session
 ```
 
-The core verifies the code and writes a timestamp to the session file.
-On the next invocation the hook sees a fresh session and allows the
-tool through.
+The core verifies the code and writes a timestamp to the session file
+(creating the per-user directory on first use). On the next
+invocation the hook sees a fresh session and allows the tool through.
 
 ## Two lockdown modes
 

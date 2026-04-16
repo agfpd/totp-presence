@@ -112,9 +112,12 @@ sudo попросит пароль один раз. Установщик:
 sudo ./examples/claude-code-hook/install.sh
 ```
 
-Создаёт три файла в `/etc/totp-presence/`: хук, файл сессии,
-конфигурацию. Все принадлежат root. Напечатает JSON-сниппет
-для хука — **пока не добавляй**.
+Создаёт два статических файла в `/etc/totp-presence/`: хук и
+конфигурацию (`claude-code-guard.sh` и `claude-code-config`, оба
+root-owned). Файл сессии создаётся lazy верификатором при первом
+успешном TOTP-коде по адресу
+`/var/run/totp-presence/<user>/claude-code-session`. Напечатает
+JSON-сниппет для хука — **пока не добавляй**.
 
 ### Шаг 4. Подключи MCP-сервер
 

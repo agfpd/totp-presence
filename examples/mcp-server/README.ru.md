@@ -79,9 +79,12 @@ Continue — всё, что умеет запускать stdio MCP-сервер
 ### Требования
 
 1. Ядро: `sudo ./core/setup.sh install`
-2. Хотя бы одна интеграция с файлами сессии (например
+2. Хотя бы одна установленная интеграция (например
    `sudo ./examples/claude-code-hook/install.sh` создаёт
-   `claude-code-session` и `claude-code-config`)
+   `/etc/totp-presence/claude-code-config` и регистрирует
+   интеграцию; соответствующий session-файл создаётся lazy под
+   `/var/run/totp-presence/<user>/claude-code-session` при первом
+   успешном TOTP-коде).
 3. Python 3.9+ и FastMCP:
    ```sh
    pip3 install fastmcp
@@ -117,12 +120,12 @@ MCP-сервера, команда и аргументы те же.
 ## Именование интеграций
 
 Имя интеграции — короткая строка вида `[a-z0-9][a-z0-9-]{0,63}`.
-Соответствует префиксу файлов в `/etc/totp-presence/`:
+Соответствует префиксу файлов в статическом и runtime-деревьях:
 
-| Имя | Файл сессии | Файл конфигурации |
-|---|---|---|
-| `claude-code` | `claude-code-session` | `claude-code-config` |
-| `aider` | `aider-session` | `aider-config` |
+| Имя | Файл конфигурации (статика)              | Файл сессии (runtime, per-user)                            |
+|---|------------------------------------------|------------------------------------------------------------|
+| `claude-code` | `/etc/totp-presence/claude-code-config`  | `/var/run/totp-presence/<user>/claude-code-session`        |
+| `aider`       | `/etc/totp-presence/aider-config`        | `/var/run/totp-presence/<user>/aider-session`              |
 
 Имена с `..`, `/`, заглавными буквами отклоняются сервером. Ядро
 дополнительно валидирует путь на своей стороне — двойная защита от
@@ -139,7 +142,10 @@ path traversal.
 
 - **Не читает секретный ключ** — он root:600, доступен только ядру.
 - **Не пишет сессию напрямую** — только через ядро при верном коде.
-- **Не создаёт интеграции** — если сессия не существует, вернёт ошибку.
+- **Не создаёт интеграции** — если файл конфигурации указанной
+  интеграции не существует, вернёт ошибку. Сам session-файл может
+  легитимно отсутствовать (создаётся lazy верификатором при первом
+  успешном коде) и не используется как маркер установки.
 - **Не устанавливает себя** в конфигурации клиентов — добавляется
   вручную.
 
@@ -148,8 +154,8 @@ path traversal.
 **`sudo: a password is required`** — sudoers-правило не установлено.
 Проверить: `./core/setup.sh status`.
 
-**`integration 'X' is not installed`** — нет файла
-`/etc/totp-presence/X-session`. Вызвать `totp_status` чтобы увидеть
+**`integration 'X' is not installed`** — нет файла конфигурации
+`/etc/totp-presence/X-config`. Вызвать `totp_status` чтобы увидеть
 доступные интеграции.
 
 **`fastmcp package not installed`** — `pip3 install fastmcp`. Если
