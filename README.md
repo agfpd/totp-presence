@@ -5,8 +5,12 @@ Russian version: [README.ru.md](./README.ru.md)
 > How an agent can know it is talking to its owner — and not to
 > text that impersonates them.
 
-**Platforms:** macOS, Linux natively. Windows via WSL (the Unix
-permission model is fundamental to the security design).
+**Platforms:** macOS (primary target, daily production use). Linux
+natively supported by design — the code is portable bash + Python
+stdlib — but live-system testing on Ubuntu / Fedora is still on the
+roadmap, so expect rough edges on Linux until that lands. Windows
+via WSL (the Unix permission model is fundamental to the security
+design).
 
 ## The problem: identity in text-based channels
 
@@ -139,7 +143,9 @@ Either mode can be used alone or both together.
 
 ## Quick start for Claude Code
 
-> Requirements: `python3` (standard library only, no pip).
+> Requirements: `bash 3.2+` (macOS default `/bin/bash` is 3.2.57 —
+> supported; Linux distros ship 4 or 5), `python3` (standard library
+> only, no pip).
 > Optional: `qrencode` for terminal QR display (`brew install qrencode`
 > on macOS, `apt install qrencode` on Linux).
 >
@@ -395,23 +401,37 @@ closed off by a retroactive patent.
 
 ## Status and Roadmap
 
-The pattern is in daily use on the author's production agents
-(three Claude Code instances, full install-to-production cycle).
-The codebase is being prepared for its first public release.
+**Released — v0.2.0, actively maintained.** In daily use on the
+author's production agents (three Claude Code instances, full
+install-to-production cycle). See [CHANGELOG.md](./CHANGELOG.md) for
+per-version notes.
 
-- [x] Core: verify, setup, sudoers
-- [x] Claude Code hook integration
-- [x] MCP server integration
+**Done:**
+
+- [x] Core: `verify.sh` (TOTP + brute-force protection) + `setup.sh` (install/uninstall/status)
+- [x] Claude Code hook integration — full-lockdown + selective modes
+- [x] MCP server integration — works in any MCP client
 - [x] Soft-prompt integration
-- [x] [SECURITY_MODEL.md](./SECURITY_MODEL.md)
-- [x] [CLAUDE.md](./CLAUDE.md)
+- [x] [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
+- [x] Per-user ephemeral session files (FHS-compliant v2 layout, v0.2.0)
+- [x] Internal pre-release security audit — C1 + H1–H3 + M1–M3 + L1–L5 closed (v0.2.0)
+- [x] Versioning + CHANGELOG + tagged releases (v0.2.0)
+
+**Pre-1.0 roadmap:**
+
 - [ ] Test suite (bats) for core and hook
+- [ ] CI with lint + tests (matrix: macOS + Ubuntu)
+- [ ] Live-system installation testing on Linux (Ubuntu + Fedora)
+- [ ] `update` mode for `setup.sh` / `install.sh` (preserve seed across upgrades)
 - [ ] Demo recording (asciinema / gif)
+
+**Post-1.0:**
+
 - [ ] Claude Code plugin package
-- [ ] Installation testing on Linux
+- [ ] Read/write semantic split in hook (`cat settings.json` should not require TOTP)
+- [ ] Homebrew formula + one-command installer
+- [ ] Notification before session-window expiry
 - [ ] Native Windows support (PowerShell + DPAPI)
-- [ ] Per-user session files for multi-user machines
-- [ ] Notification before session window expiry
 
 ---
 

@@ -5,8 +5,11 @@ English version: [README.md](./README.md)
 > Как агент может знать, что он говорит со своим владельцем — а не с
 > текстом, который его имитирует.
 
-**Платформы:** macOS, Linux нативно. Windows через WSL (модель
-безопасности на Unix-правах — фундамент дизайна).
+**Платформы:** macOS (основная, ежедневный продакшен). Linux нативно
+поддерживается по дизайну — код это переносимый bash + stdlib
+Python — но боевое тестирование на живых Ubuntu / Fedora ещё в
+roadmap, так что на Linux пока могут быть шероховатости. Windows
+через WSL (модель безопасности на Unix-правах — фундамент дизайна).
 
 ## Проблема: идентичность в текстовых каналах
 
@@ -140,7 +143,9 @@ Desktop, Cursor, Continue.
 
 ## Быстрый старт для Claude Code
 
-> Требования: `python3` (стандартная библиотека, без pip).
+> Требования: `bash 3.2+` (дефолтный `/bin/bash` на macOS — 3.2.57,
+> поддерживается; дистрибутивы Linux идут с 4 или 5), `python3`
+> (стандартная библиотека, без pip).
 > Опционально: `qrencode` для QR в терминале (`brew install qrencode`
 > на macOS, `apt install qrencode` на Linux).
 >
@@ -395,23 +400,36 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 
 ## Статус и Roadmap
 
-Паттерн используется ежедневно на реальных агентах автора
-(три инстанса Claude Code, полный цикл от установки до продакшена).
-Кодовая база готовится к первому публичному релизу.
+**Released — v0.2.0, активно поддерживается.** Используется ежедневно
+на боевых агентах автора (три инстанса Claude Code, полный цикл от
+установки до продакшена). См. [CHANGELOG.md](./CHANGELOG.md).
 
-- [x] Ядро: verify, setup, sudoers
-- [x] Claude Code hook интеграция
-- [x] MCP-сервер интеграция
+**Сделано:**
+
+- [x] Ядро: `verify.sh` (TOTP + brute-force) + `setup.sh` (install/uninstall/status)
+- [x] Интеграция Claude Code hook — полная и выборочная блокировки
+- [x] MCP-сервер интеграция — работает в любом MCP-клиенте
 - [x] Soft-prompt интеграция
-- [x] [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md)
-- [x] [CLAUDE.ru.md](./CLAUDE.ru.md)
+- [x] [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md) + [CLAUDE.ru.md](./CLAUDE.ru.md)
+- [x] Per-user ephemeral файлы сессий (FHS-compliant v2 layout, v0.2.0)
+- [x] Внутренний pre-release security-аудит — C1 + H1–H3 + M1–M3 + L1–L5 закрыты (v0.2.0)
+- [x] Versioning + CHANGELOG + tagged releases (v0.2.0)
+
+**Pre-1.0 roadmap:**
+
 - [ ] Тесты (bats) для ядра и хука
+- [ ] CI с lint + тестами (матрица: macOS + Ubuntu)
+- [ ] Боевое тестирование установки на Linux (Ubuntu + Fedora)
+- [ ] Режим `update` для `setup.sh` / `install.sh` (сохранять seed при апгрейде)
 - [ ] Демо-запись (asciinema / gif)
+
+**Post-1.0:**
+
 - [ ] Claude Code plugin package
-- [ ] Тестирование установки на Linux
-- [ ] Нативная поддержка Windows (PowerShell + DPAPI)
-- [ ] Per-user файлы сессий для multi-user машин
+- [ ] Разделение read/write в хуке (`cat settings.json` не должен требовать TOTP)
+- [ ] Homebrew formula + однокомандный установщик
 - [ ] Уведомление до окончания окна сессии
+- [ ] Нативная поддержка Windows (PowerShell + DPAPI)
 
 ---
 
