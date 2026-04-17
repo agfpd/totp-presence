@@ -1,4 +1,4 @@
-English version: [README.md](./README.md)
+English version: [../../../core/README.md](../../../core/README.md)
 
 # core — верификационный примитив totp-presence
 
@@ -14,7 +14,7 @@ English version: [README.md](./README.md)
 core/
 ├── setup.sh         — установщик ядра (запускается через sudo)
 ├── verify.sh        — верификатор
-└── README.ru.md     — этот файл
+└── README.md     — этот файл
 ```
 
 После установки (`sudo ./core/setup.sh install`) на диске появляется:
@@ -67,7 +67,7 @@ sudo ./core/setup.sh update
 
 Если установлены интеграции, у каждой обычно есть собственная
 подкоманда `update` — смотри README интеграции
-(например, [`examples/claude-code-hook/README.ru.md`](../examples/claude-code-hook/README.ru.md)).
+(например, [`examples/claude-code-hook/README.md`](../examples/claude-code-hook/README.md)).
 
 Команда `install` не подходит для обновления: она спрашивает,
 переписать ли секретный ключ (неверный ответ либо сломает

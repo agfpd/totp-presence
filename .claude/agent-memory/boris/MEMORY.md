@@ -1,0 +1,1 @@
+- [Russian-language style with Arthur](feedback_russian_style.md) — живой русский без калек, hook оставляем, mitigation→защитная мера и т.п.

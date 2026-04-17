@@ -1,4 +1,4 @@
-Russian version: [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md)
+Russian version: [docs/ru/SECURITY_MODEL.md](./docs/ru/SECURITY_MODEL.md)
 
 # Security model
 

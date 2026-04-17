@@ -1,4 +1,4 @@
-Russian version: [README.ru.md](./README.ru.md)
+Russian version: [../docs/ru/core/README.md](../docs/ru/core/README.md)
 
 # core — the verification primitive of totp-presence
 

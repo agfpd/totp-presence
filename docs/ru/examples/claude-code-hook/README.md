@@ -1,4 +1,4 @@
-English version: [README.md](./README.md)
+English version: [../../../../examples/claude-code-hook/README.md](../../../../examples/claude-code-hook/README.md)
 
 # claude-code-hook — интеграция для Claude Code
 
@@ -118,7 +118,7 @@ Read | Glob | Grep | LS | TodoWrite | WebSearch | ToolSearch | mcp__totp-presenc
 
 Почему список перевёрнут (перечислены безопасные, а не опасные) и
 почему MCP-инструменты totp-presence встроены в него — см.
-[SECURITY_MODEL.ru.md, §4](../../SECURITY_MODEL.ru.md#4-список-безопасных-инструментов-должен-оставаться-узким).
+[SECURITY_MODEL.md, §4](../../SECURITY_MODEL.md#4-список-безопасных-инструментов-должен-оставаться-узким).
 
 ### Выборочная блокировка (узкий `matcher`)
 
@@ -197,7 +197,7 @@ EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_teleg
 
 Полные правила классификатора, ограничения по обфускации и
 обоснование укороченного окна вместо полной блокировки —
-[SECURITY_MODEL.ru.md, §5b](../../SECURITY_MODEL.ru.md#5b-модификация-конфигурации-агента-через-shell-команды).
+[SECURITY_MODEL.md, §5b](../../SECURITY_MODEL.md#5b-модификация-конфигурации-агента-через-shell-команды).
 
 ## Особенности работы без терминала
 
@@ -233,4 +233,4 @@ sudo ./examples/claude-code-hook/install.sh uninstall
 Инъекцию, убеждающую владельца дать код под предлогом безобидной
 задачи (переиспользование сессии в открытом окне).
 
-Полный разбор — [SECURITY_MODEL.ru.md](../../SECURITY_MODEL.ru.md).
+Полный разбор — [SECURITY_MODEL.md](../../SECURITY_MODEL.md).

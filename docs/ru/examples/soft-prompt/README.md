@@ -1,4 +1,4 @@
-English version: [README.md](./README.md)
+English version: [../../../../examples/soft-prompt/README.md](../../../../examples/soft-prompt/README.md)
 
 # soft-prompt — инструкции для агента + MCP-инструменты
 
@@ -21,8 +21,8 @@ English version: [README.md](./README.md)
 2. Установить интеграцию для файлов сессии:
    `sudo ./examples/claude-code-hook/install.sh` (или собственную)
 3. Подключить MCP-сервер — см.
-   [mcp-server/README.ru.md](../mcp-server/README.ru.md)
-4. Открыть [prompt.ru.md](./prompt.ru.md), заменить `<integration>`
+   [mcp-server/README.md](../mcp-server/README.md)
+4. Открыть [prompt.md](./prompt.md), заменить `<integration>`
    на имя интеграции (например, `claude-code`)
 5. Скопировать блок в системный промпт или CLAUDE.md агента
 
@@ -54,11 +54,11 @@ English version: [README.md](./README.md)
 
 ## Адаптация
 
-**Другое имя интеграции:** заменить `<integration>` в prompt.ru.md на
+**Другое имя интеграции:** заменить `<integration>` в prompt.md на
 имя своей интеграции. Имя = префикс файлов в `/etc/totp-presence/`
 (например, `aider` → `aider-session`, `aider-config`).
 
-**Другие триггеры:** список «когда проверять» в prompt.ru.md —
+**Другие триггеры:** список «когда проверять» в prompt.md —
 отправная точка. Если агент работает только с кодом и не имеет
 доступа к SSH или графическому интерфейсу — соответствующие пункты
 можно убрать.
@@ -72,9 +72,9 @@ English version: [README.md](./README.md)
 В жёстком режиме (с hook) инструмент обмена сообщениями должен быть
 разрешён без сессии — иначе агент не сможет попросить код.
 Подробности — в
-[claude-code-hook/README.ru.md](../claude-code-hook/README.ru.md),
+[claude-code-hook/README.md](../claude-code-hook/README.md),
 раздел «Каналы связи».
 
 **Адаптация промпта:** человек не видит терминал — все инструкции
-агента должны идти через канал связи. Формулировки в prompt.ru.md
+агента должны идти через канал связи. Формулировки в prompt.md
 должны подходить для используемого канала.

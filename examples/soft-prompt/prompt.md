@@ -1,4 +1,4 @@
-Russian version: [prompt.ru.md](./prompt.ru.md)
+Russian version: [../../docs/ru/examples/soft-prompt/prompt.md](../../docs/ru/examples/soft-prompt/prompt.md)
 
 # totp-presence — agent instructions
 

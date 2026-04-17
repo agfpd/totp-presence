@@ -1,4 +1,4 @@
-Russian version: [PRIOR_ART.ru.md](./PRIOR_ART.ru.md)
+Russian version: [docs/ru/PRIOR_ART.md](./docs/ru/PRIOR_ART.md)
 
 # Prior art
 

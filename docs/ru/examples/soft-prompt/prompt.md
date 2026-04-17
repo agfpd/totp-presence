@@ -1,4 +1,4 @@
-English version: [prompt.md](./prompt.md)
+English version: [../../../../examples/soft-prompt/prompt.md](../../../../examples/soft-prompt/prompt.md)
 
 # totp-presence — инструкции для агента
 

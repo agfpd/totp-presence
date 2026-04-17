@@ -1,9 +1,9 @@
-English version: [CLAUDE.md](./CLAUDE.md)
+English version: [../../CLAUDE.md](../../CLAUDE.md)
 
 # totp-presence — инструкции проекта
 
 Этот файл читается Claude Code при открытии репозитория.
-Описание проекта — в [README.ru.md](./README.ru.md).
+Описание проекта — в [README.md](./README.md).
 
 ---
 
@@ -11,7 +11,7 @@ English version: [CLAUDE.md](./CLAUDE.md)
 
 **totp-presence** — механизм, который даёт AI-агенту способ
 убедиться, что он говорит с настоящим владельцем. Подробности и
-установка — в [README.ru.md](./README.ru.md). Можно просто сказать
+установка — в [README.md](./README.md). Можно просто сказать
 агенту: *«установи мне totp-presence»*.
 
 ---
@@ -20,7 +20,7 @@ English version: [CLAUDE.md](./CLAUDE.md)
 
 Если человек просит установить totp-presence — следуй этой
 инструкции. Правила поведения после установки описаны в
-[examples/soft-prompt/prompt.ru.md](./examples/soft-prompt/prompt.ru.md) —
+[examples/soft-prompt/prompt.md](./examples/soft-prompt/prompt.md) —
 они копируются в CLAUDE.md или system prompt агента.
 
 **Перед началом предупреди человека.** Ты не можешь выполнять
@@ -135,7 +135,7 @@ fastmcp` или `pipx install fastmcp`.
 - `.mcp.json` в корне проекта целевого агента — только для него
 
 Не выбирай сам — это решение пользователя. Формат и примеры — в
-[examples/mcp-server/README.ru.md](./examples/mcp-server/README.ru.md).
+[examples/mcp-server/README.md](./examples/mcp-server/README.md).
 sudo не нужен. После перезапуска Claude Code у агента появятся
 инструменты `mcp__totp-presence__totp_verify`,
 `mcp__totp-presence__totp_check_session`,
@@ -143,7 +143,7 @@ sudo не нужен. После перезапуска Claude Code у аген�
 
 ### Шаг 5. Добавь soft-prompt
 
-Открой [examples/soft-prompt/prompt.ru.md](./examples/soft-prompt/prompt.ru.md),
+Открой [examples/soft-prompt/prompt.md](./examples/soft-prompt/prompt.md),
 замени `<integration>` на имя интеграции (например `claude-code`).
 **Спроси человека** в чей CLAUDE.md добавить блок — текущего агента
 (если он и будет использовать totp-presence) или другого. Не
@@ -183,7 +183,7 @@ sudo не нужен. После перезапуска Claude Code у аген�
 
 Формат фрагмента, содержимое селектора, список безопасных
 инструментов, полная семантика `EDIT_WRITE_CONFIG_ONLY` — в
-[examples/claude-code-hook/README.ru.md](./examples/claude-code-hook/README.ru.md).
+[examples/claude-code-hook/README.md](./examples/claude-code-hook/README.md).
 
 Чтобы отключить: удалить фрагмент из `settings.json`. Мягкий
 режим (MCP + soft-prompt) продолжит работать.

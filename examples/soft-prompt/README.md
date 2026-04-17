@@ -1,4 +1,4 @@
-Russian version: [README.ru.md](./README.ru.md)
+Russian version: [../../docs/ru/examples/soft-prompt/README.md](../../docs/ru/examples/soft-prompt/README.md)
 
 # soft-prompt — agent instructions + MCP tools
 

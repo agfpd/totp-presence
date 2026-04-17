@@ -1,4 +1,4 @@
-English version: [README.md](./README.md)
+English version: [../../../../examples/mcp-server/README.md](../../../../examples/mcp-server/README.md)
 
 # mcp-server — MCP-интеграция для totp-presence
 

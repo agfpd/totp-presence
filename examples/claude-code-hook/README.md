@@ -1,4 +1,4 @@
-Russian version: [README.ru.md](./README.ru.md)
+Russian version: [../../docs/ru/examples/claude-code-hook/README.md](../../docs/ru/examples/claude-code-hook/README.md)
 
 # claude-code-hook — integration for Claude Code
 

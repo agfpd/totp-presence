@@ -1,4 +1,4 @@
-English version: [README.md](./README.md)
+English version: [../../README.md](../../README.md)
 
 [![ci](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml/badge.svg)](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml)
 
@@ -119,7 +119,7 @@ Authy и т.п.).
 > включая действия, запущенные инъекцией. Меры: держать окно коротким,
 > использовать встроенную защиту конфигов (окно 120 с) и добавить
 > промпт-правила для необратимых действий. Полный анализ —
-> [SECURITY_MODEL.ru.md, §3](./SECURITY_MODEL.ru.md#3-переиспользование-сессии--не-подтверждение-конкретного-действия).
+> [SECURITY_MODEL.md, §3](./SECURITY_MODEL.md#3-переиспользование-сессии--не-подтверждение-конкретного-действия).
 
 ### Два режима использования
 
@@ -163,7 +163,7 @@ sudo ./examples/claude-code-hook/install.sh
 pip3 install fastmcp  # macOS Homebrew: pip3 install --break-system-packages fastmcp
 
 # 4. Soft-prompt — инструкции агенту когда проверять
-# Скопировать блок из examples/soft-prompt/prompt.ru.md в CLAUDE.md.
+# Скопировать блок из examples/soft-prompt/prompt.md в CLAUDE.md.
 # Обязательно: блок содержит timing-правило — totp_verify должен
 # быть первым tool-call в turn'е, когда приходит код. Коды живут
 # ~30с, промежуточные рассуждения съедают окно. Это правило должно
@@ -185,7 +185,7 @@ JSON-фрагмент для hook — **добавлять фрагмент по
   }
 }
 ```
-Подробности — в [examples/mcp-server/README.ru.md](./examples/mcp-server/README.ru.md).
+Подробности — в [examples/mcp-server/README.md](./examples/mcp-server/README.md).
 После добавления — **перезапустить Claude Code**, чтобы MCP-сервер
 загрузился.
 
@@ -212,14 +212,14 @@ Claude Code попросит подтвердить правку. После э�
 - **Если агент работает через Telegram, Slack или другой внешний
   канал** — инструмент обмена сообщениями нужно разрешить без сессии,
   иначе агент не сможет ни ответить, ни попросить код. См.
-  [claude-code-hook/README.ru.md](./examples/claude-code-hook/README.ru.md),
+  [claude-code-hook/README.md](./examples/claude-code-hook/README.md),
   раздел «Каналы связи».
 - **Выборочная блокировка** — альтернатива полной. Защищает только
   указанные инструменты, остальные работают свободно. Меньше
   трения, но новые инструменты не защищены автоматически.
 
 Подробности обоих режимов —
-[examples/claude-code-hook/README.ru.md](./examples/claude-code-hook/README.ru.md).
+[examples/claude-code-hook/README.md](./examples/claude-code-hook/README.md).
 
 <details>
 <summary>macOS + Apple Passwords</summary>
@@ -280,7 +280,7 @@ sudo ./examples/claude-code-hook/install.sh update   # для каждой ус�
   `/etc/totp-presence/`, состояние времени выполнения (сессии,
   счётчик переборов, блокировка) — под `/var/run/totp-presence/`,
   отдельно по пользователю, очищается при перезагрузке. API, коды
-  возврата, валидация пути — [core/README.ru.md](./core/README.ru.md).
+  возврата, валидация пути — [core/README.md](./core/README.md).
 
 - **Интеграции (`examples/`).** Готовые к работе референсные
   интеграции, не демонстрационные. Каждая оборачивает ядро под
@@ -301,11 +301,11 @@ sudo ./examples/claude-code-hook/install.sh update   # для каждой ус�
 Ядро не привязано к конкретной агентской системе — им может
 пользоваться любой процесс, умеющий вызвать shell-команду. Как
 написать свою интеграцию —
-[core/README.ru.md](./core/README.ru.md#как-написать-свою-интеграцию).
+[core/README.md](./core/README.md#как-написать-свою-интеграцию).
 
 ## Границы и риски
 
-Границы, остаточные риски, модель угроз — [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md).
+Границы, остаточные риски, модель угроз — [SECURITY_MODEL.md](./SECURITY_MODEL.md).
 
 ## Почему это имеет смысл
 
@@ -331,7 +331,7 @@ Telegram, единственным доказательством владель
 
 Сравнение со смежными работами (IBM + Auth0 + Yubico, Checkmarx
 Zero, библиотеки TOTP в обратном направлении) —
-[PRIOR_ART.ru.md](./PRIOR_ART.ru.md).
+[PRIOR_ART.md](./PRIOR_ART.md).
 
 ## Лицензия
 
@@ -358,7 +358,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 - Набор тестов ([bats](./tests/README.md)) — 49 для hook + 15 для ядра
 - Непрерывная интеграция: shellcheck и bats на macOS и Ubuntu
 - Версионирование, CHANGELOG, релиз-теги
-- [SECURITY_MODEL.ru.md](./SECURITY_MODEL.ru.md) + [CLAUDE.ru.md](./CLAUDE.ru.md)
+- [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
 
 **Открыто:**
 
@@ -367,4 +367,4 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 
 ---
 
-Для AI-агентов, читающих это репо: см. [CLAUDE.ru.md](./CLAUDE.ru.md).
+Для AI-агентов, читающих это репо: см. [CLAUDE.md](./CLAUDE.md).

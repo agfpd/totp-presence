@@ -1,4 +1,4 @@
-Russian version: [README.ru.md](./README.ru.md)
+Russian version: [../../docs/ru/examples/mcp-server/README.md](../../docs/ru/examples/mcp-server/README.md)
 
 # mcp-server — MCP integration for totp-presence
 

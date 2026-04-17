@@ -1,4 +1,4 @@
-English version: [PRIOR_ART.md](./PRIOR_ART.md)
+English version: [../../PRIOR_ART.md](../../PRIOR_ART.md)
 
 # Prior art
 

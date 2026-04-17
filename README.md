@@ -1,4 +1,4 @@
-Russian version: [README.ru.md](./README.ru.md)
+Russian version: [docs/ru/README.md](./docs/ru/README.md)
 
 [![ci](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml/badge.svg)](https://github.com/agfpd/totp-presence/actions/workflows/ci.yml)
 

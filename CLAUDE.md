@@ -1,4 +1,4 @@
-Russian version: [CLAUDE.ru.md](./CLAUDE.ru.md)
+Russian version: [docs/ru/CLAUDE.md](./docs/ru/CLAUDE.md)
 
 # totp-presence — project instructions
 
