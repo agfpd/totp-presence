@@ -2,10 +2,12 @@ Russian version: [PRIOR_ART.ru.md](./PRIOR_ART.ru.md)
 
 # Prior art
 
-A prior-art search (April 2026) found no earlier description of this
-exact pattern — a TOTP code from the human, treated as a
-channel-independent identity signal that gates agent tool use. Related
-work below.
+We could not find a public prior-art description of exactly this
+pattern — a TOTP code from the human, treated as a
+channel-independent identity signal that gates agent tool use — as of
+April 2026. If you know of one, please open an issue; the comparison
+below should be extended, not the claim defended. Related work that
+does exist:
 
 ## [IBM + Auth0 + Yubico, RSAC 2026](https://www.ibm.com/new/announcements/securing-agentic-ai-why-automation-still-needs-human-oversight)
 
