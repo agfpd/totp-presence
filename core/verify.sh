@@ -223,7 +223,10 @@ case "$INVOKING_USER" in
 esac
 # Sanity: only allow user names matching the standard POSIX-portable
 # character class so the value is safe to splice into a directory path.
-if ! printf '%s' "$INVOKING_USER" | grep -qE '^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$'; then
+# Using the bash built-in regex match rather than `grep -qE` keeps this
+# on one process, makes the semantics independent of any locale leak,
+# and is faster on machines where fork is expensive.
+if ! [[ "$INVOKING_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$ ]]; then
     echo "error: SUDO_USER value '$INVOKING_USER' contains characters that are not safe for a path component" >&2
     exit 1
 fi
@@ -319,7 +322,7 @@ if [ -z "$CODE" ]; then
     exit 1
 fi
 
-if ! printf '%s' "$CODE" | grep -qE '^[0-9]{6}$'; then
+if ! [[ "$CODE" =~ ^[0-9]{6}$ ]]; then
     echo "error: code must be exactly 6 digits" >&2
     exit 1
 fi
@@ -445,12 +448,35 @@ if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ] && [ "$AGE_SINCE_LAST_FAIL" -ge "$LOCKOUT_
 fi
 
 # -------- verify --------
+#
+# Seed normalisation: a stored secret may accumulate trailing whitespace
+# or a CRLF on machines where the seed file was edited by a non-unix
+# tool. Base32 decoding on such a payload returns garbage or raises,
+# which previously surfaced as a silent authentication failure —
+# indistinguishable from an attacker submitting wrong codes. Strip
+# whitespace and validate the shape here so an installer-level error
+# produces a clear, distinct message instead.
 
-SECRET=$(cat "$SECRET_FILE")
+SECRET=$(tr -d '[:space:]' < "$SECRET_FILE")
+
+if [ -z "$SECRET" ]; then
+    echo "error: seed file at $SECRET_FILE is empty or contains only whitespace. Reinstall with: sudo ./core/setup.sh install" >&2
+    exit 1
+fi
+if ! [[ "$SECRET" =~ ^[A-Za-z2-7=]+$ ]]; then
+    echo "error: seed file at $SECRET_FILE is not a valid base32 string. Reinstall with: sudo ./core/setup.sh install" >&2
+    # Do not print the seed itself. The length check alone is a useful
+    # signal and does not leak secret material.
+    exit 1
+fi
 
 # Inline TOTP verification using only Python standard library.
 # No pip dependencies. Implements RFC 6238 (TOTP) / RFC 4226 (HOTP).
-# The secret is passed via env var, not argv, so it never appears in `ps`.
+#
+# The secret is fed on stdin, not via env var. Previously the seed sat
+# in `/proc/<pid>/environ` for the lifetime of the python child; on
+# Linux that file is root-readable only, but "root-readable only" is
+# not the same as "not on disk at all". stdin leaves no procfs trace.
 #
 # Exit-code discipline:
 #   - 0 with stdout "VALID"    -> code matches, session may be opened
@@ -460,10 +486,10 @@ SECRET=$(cat "$SECRET_FILE")
 #                                 distinct error so a crashed python3
 #                                 does not drive a legitimate user into
 #                                 the brute-force lockout.
-RESULT=$(SECRET="$SECRET" CODE="$CODE" python3 -c '
-import hmac, hashlib, struct, time, base64, os
+RESULT=$(printf '%s' "$SECRET" | CODE="$CODE" python3 -c '
+import hmac, hashlib, struct, time, base64, os, sys
 
-secret_b32 = os.environ["SECRET"]
+secret_b32 = sys.stdin.read().strip()
 code = os.environ["CODE"]
 valid_window = 1
 
