@@ -190,6 +190,28 @@ teardown() {
     sudo -n rm -f "$FAIL_COUNTER_FILE"
 }
 
+@test "session write refuses to follow a symlink (exit 1, not fail-closed)" {
+    # Session writes are NOT fail-closed: a missing session file means
+    # "not authenticated", which is the safe default. Exit 1 with a
+    # clear error so the integration can surface the disk problem.
+    local session_path bait code
+    session_path="$RUNTIME_BASE/$USER/lifecycle-test-session"
+    bait="$(mktemp -u /tmp/totp-presence-bait-session.XXXXXX)"
+    # Ensure the per-user runtime dir exists so the symlink can be
+    # placed where verify.sh would try to write the session.
+    sudo -n mkdir -p "$RUNTIME_BASE/$USER"
+    sudo -n ln -s "$bait" "$session_path"
+    code="$(generate_totp_code "$TEST_SEED")"
+    run core_verify_testmode "$code" --session "$session_path"
+    [ "$status" -eq 1 ] || { printf 'status=%d output=%s\n' "$status" "$output" >&2; return 1; }
+    assert_output_contains "symlink" || return 1
+    # The bait file must not have been written.
+    [ ! -e "$bait" ] || { echo "bait file was created via symlink — session write-protection bypassed"; sudo -n rm -f "$bait"; return 1; }
+    # The symlink must still be there (we did not succeed in replacing
+    # it). Clean it up so subsequent tests start fresh.
+    sudo -n rm -f "$session_path"
+}
+
 # ---------- SUDO_USER validation ----------
 
 @test "SUDO_USER unset → exit 1" {
