@@ -155,101 +155,37 @@ codes, what not to do.
 
 ### Step 6 (optional). Enable hard lockdown
 
-**Do not add the snippet yourself — propose it to the human and
-explain what will happen.**
+Do not add the snippet yourself — propose it to the human, explain
+what will happen, then let them confirm the edit themselves.
 
-**Important:** the MCP server from step 4 must be connected and
-running before enabling the hook. Verify that the tools
-`mcp__totp-presence__totp_verify` are available. If the hook is
-active but the MCP server is not loaded — the agent is locked out
-with no way to open a session.
+**Pre-conditions:**
+- The MCP server from step 4 must be connected and the tools
+  `mcp__totp-presence__totp_verify` must be visible. Without that the
+  hook locks the agent out with no way to open a session.
+- If the agent talks to the human through an external channel
+  (Telegram, Slack, etc.), pass `--messaging-tools "<pipe-separated
+  tool names>"` to the installer so the messaging tool stays callable
+  without a session — otherwise the agent cannot ask for a code.
 
-Before configuring:
+**Decisions to bring to the human:**
 
-1. **Which tools to protect?** Check which MCP servers and tools are
-   available in the current session. Compile a recommendation — show
-   the human the list and suggest a lockdown mode.
+1. **Lockdown mode.** Full (matcher `.*`, recommended — new tools
+   protected automatically) or selective (narrow matcher — less
+   friction, new tools are not). Pin the mode with `--full-lockdown`
+   or `--selective-edit-write` so the installer does not silently
+   inherit a stale `EDIT_WRITE_CONFIG_ONLY` value.
 
-2. **Which lockdown mode?** Explain both:
+2. **Where to add the snippet.** Project-level
+   `<project>/.claude/settings.json` (only this agent) or global
+   `~/.claude/settings.json` (all projects). Both append to the
+   `hooks.PreToolUse` array.
 
-**Full lockdown** (recommended). Matcher `".*"` — every invocation
-passes through the hook. The hook allows only safe read-only tools
-and totp-presence MCP tools through. Everything else requires a
-session. New tools, plugins, and MCP servers are automatically
-protected.
+Snippet format, matcher contents, safe-tools list, full
+`EDIT_WRITE_CONFIG_ONLY` semantics — in
+[examples/claude-code-hook/README.md](./examples/claude-code-hook/README.md).
 
-```json
-{
-  "matcher": ".*",
-  "hooks": [
-    {
-      "type": "command",
-      "command": "/etc/totp-presence/claude-code-guard.sh"
-    }
-  ]
-}
-```
-
-Safe tools (pass without a session):
-- Built-in read-only: `Read`, `Glob`, `Grep`, `LS`,
-  `TodoWrite`, `WebSearch`, `ToolSearch`
-- totp-presence MCP tools: `mcp__totp-presence__*`
-- Communication channels: configured via `EXTRA_SAFE_TOOLS`
-  in the configuration (see below)
-
-**Selective lockdown.** Matcher on specific tools. Everything else
-works freely. The agent asks for a code less often, but new tools are
-not protected automatically.
-
-```json
-{
-  "matcher": "Bash|Write|Edit|NotebookEdit|WebFetch|Agent|Task",
-  "hooks": [
-    {
-      "type": "command",
-      "command": "/etc/totp-presence/claude-code-guard.sh"
-    }
-  ]
-}
-```
-
-For MCP tools, add their servers to the matcher:
-`"Bash|Write|Edit|mcp__peekaboo__.*|mcp__computer-use__.*"`
-
-3. **Communication channels.** If the agent communicates with the
-   human through an external channel (Telegram, Slack), the messaging
-   tool **must** be allowed without a session — otherwise the agent
-   cannot ask for a code and will be locked out. Ask which channel is
-   used and set it during installation:
-```sh
-sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
-```
-   Or manually in `/etc/totp-presence/claude-code-config` (sudo):
-```
-EXTRA_SAFE_TOOLS=mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment
-```
-
-4. **Pin the lockdown mode.** Pass `--full-lockdown` (matcher `.*`,
-   recommended) or `--selective-edit-write` (narrow matcher) to the
-   installer. This writes `EDIT_WRITE_CONFIG_ONLY` explicitly into
-   the config and silences the warning the installer would otherwise
-   print on reinstall. Without an explicit flag the installer
-   preserves the existing value, but warns loudly if the inherited
-   value is `true` — that mode lets non-config Edit/Write through
-   without a session and must match the matcher choice in
-   `settings.json`.
-
-5. **Where to add the snippet? Ask the human.**
-   - **Project-level** `<project>/.claude/settings.json` — only for
-     this agent.
-   - **Global** `~/.claude/settings.json` — for all projects.
-
-It is added to the `hooks.PreToolUse` array. Claude Code will ask for
-explicit confirmation — this confirmation must come from the human,
-not from you.
-
-**How to disable hard lockdown:** remove the snippet from
-settings.json. Soft mode (MCP + soft prompt) will continue to work.
+To disable: remove the snippet from `settings.json`. Soft mode
+(MCP + soft prompt) keeps working.
 
 ### Updating an existing install
 
@@ -272,20 +208,14 @@ brute-force fail-counter is cleared so the upgraded verifier
 starts from a clean slate. No re-enrolment and no Claude Code
 restart are needed.
 
-### Reference commands
+### Removal
 
-| Action | Command |
-|---|---|
-| Check installation | `./core/setup.sh status` (no sudo) |
-| Update core after `git pull` | `sudo ./core/setup.sh update` |
-| Update the hook integration after `git pull` | `sudo ./examples/claude-code-hook/install.sh update` |
-| Change session window | `sudo ./examples/claude-code-hook/install.sh --window-minutes N` |
-| Pin full lockdown | `sudo ./examples/claude-code-hook/install.sh --full-lockdown` |
-| Pin selective lockdown | `sudo ./examples/claude-code-hook/install.sh --selective-edit-write` |
-| Configure messaging | `sudo ./examples/claude-code-hook/install.sh --messaging-tools "tool1\|tool2"` |
-| Remove integration | `sudo ./examples/claude-code-hook/install.sh uninstall` |
-| Remove core | `sudo ./core/setup.sh uninstall` |
+Integration first, then core:
 
-Removal: integration first, then core. The hook from
-`~/.claude/settings.json` is removed by the human manually — the
-installer will print the exact command.
+```sh
+sudo ./examples/claude-code-hook/install.sh uninstall
+sudo ./core/setup.sh uninstall
+```
+
+The snippet in `~/.claude/settings.json` is not touched by the
+installer — it prints the exact command for the human to run.

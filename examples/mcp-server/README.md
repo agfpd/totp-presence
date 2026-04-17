@@ -140,19 +140,13 @@ The server runs under a regular user. When invoking verify it uses
 — immediate error). The core's sudoers rule allows passwordless sudo
 only for `/etc/totp-presence/verify`.
 
-## What the server does NOT do
+## Boundaries
 
-- **Does not read the secret key** — it is root:600, accessible only
-  to the core.
-- **Does not write the session directly** — only through the core upon
-  a correct code.
-- **Does not create integrations** — if a config file for the named
-  integration does not exist, it returns an error. The session file
-  itself may legitimately be absent (it is created lazily by the
-  verifier on the first successful code) and is not used as the
-  installation marker.
-- **Does not install itself** into client configurations — added
-  manually.
+The server is a thin wrapper. It cannot read the secret key
+(root:600), cannot write a session directly (only the core does, on a
+correct code), cannot create integrations (a missing config file is
+an error), and does not register itself in client configurations
+(added manually).
 
 ## Troubleshooting
 

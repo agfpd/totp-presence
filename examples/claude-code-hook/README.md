@@ -111,17 +111,9 @@ Everything else requires an open session:
 - `Task` / `Agent` (subagents that invoke tools themselves)
 - Any other MCP tools
 
-**Why safe tools are enumerated, not dangerous ones.** The usual
-approach — enumerating dangerous tools — introduces a vulnerability:
-anything omitted, or introduced in an update, or added by a new
-plugin — is left unprotected. Here the opposite applies: new tools are
-automatically placed under protection.
-
-totp-presence MCP tools (`mcp__totp-presence__*`) are built into the
-safe list — otherwise the agent cannot invoke `totp_verify` to open a
-session. This is safe: `totp_verify` passes through the core with
-brute-force protection, `totp_check_session` and `totp_status` are
-pure reads.
+Why the safe list is inverted (enumerate safe, not dangerous), and
+why totp-presence MCP tools are built in — see
+[SECURITY_MODEL.md, §4](../../SECURITY_MODEL.md#4-the-safe-tool-allowlist-must-remain-narrow).
 
 ### Selective lockdown (selective matcher)
 
@@ -189,38 +181,16 @@ the messaging tool simply does not match the matcher.
 
 ## Configuration file protection
 
-In addition to the regular session window (25 min), the hook applies a
-shortened window (120 seconds) for files that control agent security:
+In addition to the regular session window (25 min), the hook applies
+a shortened 120-second window for files that control agent security:
+`settings.json`, `settings.local.json`, `.claude.json`, `CLAUDE.md`,
+`.claude/agents/*`. Edit and Write are matched by `file_path`; Bash
+commands are scanned for the same paths, with diagnostic read-only
+commands (`cat`, `grep`, `jq`, …) allowed through.
 
-- `settings.json`, `settings.local.json` — hook settings
-- `.claude.json` — MCP server configuration
-- `CLAUDE.md` — agent instructions
-- `.claude/agents/*` — agent definitions
-
-The shortened window applies to three tools:
-
-- **Edit and Write** — by `file_path` in the invocation parameters.
-- **Bash** — the hook parses the shell command content and performs a
-  text search for configuration paths. Write commands
-  (`echo >> settings.json`, `sed -i CLAUDE.md`, `cp`, `mv`, `rm`,
-  `tee`, `chmod`, `chown`, `find -delete`, etc.) are caught.
-  Diagnostic read-only commands on the same paths pass without TOTP:
-  `cat ~/.claude/settings.json`, `grep hook settings.json`,
-  `head -20 CLAUDE.md`, `jq .mcpServers .claude.json`, etc. The
-  classifier requires the first token to be on a short read-only
-  allowlist (`cat`, `head`, `tail`, `grep`, `wc`, `stat`, `file`,
-  `ls`, `diff`, `awk`, `find`, `jq`, `cut`, `sort`, `uniq`, …) AND
-  the command to contain no write markers anywhere. Anything
-  ambiguous falls through to the tighter config-window deny —
-  recoverable via a fresh TOTP code.
-  Obfuscation (variables, base64, eval) is not caught — for that,
-  filesystem-level protection is needed (see
-  [SECURITY_MODEL.md](../../SECURITY_MODEL.md), §5b).
-
-Why a separate window rather than a full block: there is a legitimate
-need to modify settings through the agent. The human asks the agent to
-change a config → the agent requests a fresh code → the human sees
-why and decides → the code opens a 2-minute window for the edit.
+Full classifier rules, obfuscation limits, and the rationale for a
+shortened window rather than a full block —
+[SECURITY_MODEL.md, §5b](../../SECURITY_MODEL.md#5b-modification-of-agent-configuration-via-shell-commands).
 
 ## Headless operation specifics
 
@@ -237,8 +207,12 @@ whether to provide a code.
 sudo ./examples/claude-code-hook/install.sh uninstall
 ```
 
-Removes the three integration files. The core remains — it can be
-removed separately via `sudo ./core/setup.sh uninstall`.
+Removes the integration's static files (`claude-code-guard.sh`,
+`claude-code-config`) and any per-user session files under
+`/var/run/totp-presence/<user>/claude-code-session`. A legacy v1
+session file under `/etc/totp-presence/` is removed too if present.
+The core remains — it can be removed separately via
+`sudo ./core/setup.sh uninstall`.
 
 The hook entry in `~/.claude/settings.json` is not touched by the
 installer — it will print a `jq` command for manual removal.

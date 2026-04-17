@@ -4,15 +4,11 @@ Russian version: [README.ru.md](./README.ru.md)
 
 # totp-presence
 
-> How an agent can know it is talking to its owner — and not to
-> text that impersonates them.
+> How can an agent know it is talking to its owner — and not to text
+> that impersonates them?
 
-**Platforms:** macOS (primary target, daily production use). Linux
-natively supported by design — the code is portable bash + Python
-stdlib — but live-system testing on Ubuntu / Fedora is still on the
-roadmap, so expect rough edges on Linux until that lands. Windows
-via WSL (the Unix permission model is fundamental to the security
-design).
+**Platforms:** macOS (production). Linux — code is portable, but
+live-system testing is on the roadmap. Windows — via WSL only.
 
 ## The problem: identity in text-based channels
 
@@ -271,156 +267,62 @@ existing config values).
 
 ## Architecture
 
-The project is split into two layers:
+Two layers:
 
-### Core (`core/`)
+- **Core (`core/`).** Bash + inline Python (stdlib), zero external
+  dependencies. The secret key sits under root, a narrow sudoers rule
+  grants passwordless sudo only to the verifier, and one public
+  command (`verify <code> [--session <path>]`) does everything.
+  Layout follows FHS: static files under `/etc/totp-presence/`,
+  runtime state (sessions, brute-force counter, lock) under
+  `/var/run/totp-presence/`, per-user, cleared on reboot.
+  API, exit codes, path validation — [core/README.md](./core/README.md).
 
-Two scripts: bash with inline Python using the standard library. Zero
-external dependencies. Secret key under root permissions, a narrow
-sudoers rule (passwordless sudo only for the verifier), one public
-command:
+- **Integrations (`examples/`).** Production-ready reference
+  integrations, not demos. Each wraps the core for a specific agent
+  system, choosing its own session file name, window length, and
+  rejection format:
+  - [claude-code-hook](./examples/claude-code-hook/) — `PreToolUse`
+    hook for Claude Code. Full / selective lockdown, shortened
+    120-second window for configuration files, messaging-tool
+    allowlist for terminal-less agents.
+  - [mcp-server](./examples/mcp-server/) — MCP server exposing three
+    tools (check session, verify code, status). Works in any MCP
+    client.
+  - [soft-prompt](./examples/soft-prompt/) — agent instructions + the
+    MCP tools. For clients without hook support, or as a supplement.
 
-```sh
-# Verify a code — yes/no, changes nothing
-sudo /etc/totp-presence/verify 123456
-# exit 0 = correct, exit 2 = incorrect, exit 3 = locked out, exit 1 = error
+The core is not tied to any agent system — any process able to invoke
+a shell command can use it. Writing your own integration —
+[core/README.md](./core/README.md#how-to-write-your-own-integration).
 
-# Verify a code and open a session — writes a timestamp to a file
-sudo /etc/totp-presence/verify 123456 \
-     --session /var/run/totp-presence/$USER/claude-code-session
-```
+## Boundaries and risks
 
-Layout follows FHS: static files (the secret, the verifier, integration
-configs) live under `/etc/totp-presence/`; runtime state (session
-timestamps, the brute-force counter, the lock) lives under
-`/var/run/totp-presence/`, scoped per user and cleared on reboot.
-
-The `--session` path is strictly validated: only files directly inside
-`/var/run/totp-presence/<invoking-user>/` whose name ends with
-`-session` are allowed — nothing else can be overwritten through the
-verifier, and the write itself is atomic and refuses to follow
-symlinks. Details — [core/README.md](./core/README.md).
-
-### Integrations (`examples/`)
-
-Despite the directory name, these are not demo examples but production-ready
-reference integrations. Wrappers around the core, tailored for a specific
-agent system. Each integration chooses a session file name, window length,
-and rejection response format:
-
-- **[claude-code-hook](./examples/claude-code-hook/)** — a hook for
-  Claude Code that fires on every tool invocation. Supports full and
-  selective lockdown, protection of configuration files with a shortened
-  window (120 seconds), and communication channel configuration for
-  headless agents.
-- **[mcp-server](./examples/mcp-server/)** — an MCP server
-  (Model Context Protocol) with three tools: check session, verify
-  code, show status. Works in **any** MCP client — Claude Code, Claude
-  Desktop, Cursor, Continue, or any future client that supports MCP.
-  This is the primary cross-platform integration: no hooks or
-  client-specific code required.
-- **[soft-prompt](./examples/soft-prompt/)** — text instructions for
-  the agent + MCP tools. The prompt tells the agent *when* to verify
-  (before dangerous actions, when in doubt), MCP provides *the means*.
-  For systems without hook support or as a supplement to hooks.
-
-The core is not tied to any specific agent system. Any agent capable
-of invoking a shell command can use it.
-
-<details>
-<summary>How to write your own integration</summary>
-
-1. Choose a session file name. The path must end with `-session` and
-   live under the per-user runtime directory, e.g.
-   `/var/run/totp-presence/<user>/my-agent-session`. The verifier
-   creates the directory lazily on the first successful code.
-2. Decide how long a session is considered fresh (sliding window,
-   per-action check, etc.).
-3. At every check point, read the session file and compare the
-   timestamp to the current time.
-4. When the session has expired — instruct the user or agent to
-   invoke `verify --session <path>` with a fresh code.
-
-Reference example —
-[claude-code-hook](./examples/claude-code-hook/).
-
-</details>
-
-## What this is NOT
-
-A brief honesty section. Full version —
-[SECURITY_MODEL.md](./SECURITY_MODEL.md).
-
-- **Not a substitute for isolation.** If an attacker has gained root
-  access to the machine, they can read the secret key — protection
-  is broken.
-- **Not protection against arbitrary code execution.** If the agent
-  executes shell commands bypassing its standard tool system, hooks
-  do not fire.
-- **Not a universal lock.** Protects only what a specific integration
-  has placed a check on.
-- **Not confirmation of a specific action.** Presence ≠ consent —
-  see the callout in ["What it looks like in practice"](#what-it-looks-like-in-practice)
-  and [SECURITY_MODEL.md, §3](./SECURITY_MODEL.md).
-- **Not magic.** Kerckhoffs's principle: the secret key is the only
-  thing that is private. The project code is open and must remain
-  secure under this condition.
+Boundaries, residual risks, threat model — [SECURITY_MODEL.md](./SECURITY_MODEL.md).
 
 ## Why this matters
 
-Models are getting better at recognizing malicious injections — but
-sender identity is still not encoded in text. No amount of AI
-advancement will add a cryptographic signature to plain text. As long
-as agents accept commands via text, they need a channel-independent
-way to ascertain who is on the other end.
-
-Hard lockdown as an optional layer becomes less critical with more
-capable models. But the core function — a verifiable identity signal —
-does not depend on model capability: it is about the absence of
-information in the channel, not about the model's ability to detect
-attacks.
-
-Moreover, by adding a constraint you **expand** what you can entrust
-to the agent. Without TOTP you are unlikely to allow autonomous GUI
-automation, SSH, or password management — the risk surface is too
-large. With TOTP — you will: every sensitive step has an independent
-confirmation.
+Sender identity is not encoded in text, and no model improvement will
+add a cryptographic signature to plain text. As long as agents accept
+commands via text, they need a channel-independent way to ascertain
+who is on the other end. Adding this constraint also expands what you
+can safely entrust to the agent: with an independent confirmation per
+sensitive step, autonomous GUI automation, SSH, and password
+management become reasonable to delegate.
 
 ## Origin
 
-The author operates several autonomous AI agents that accept commands
-via Telegram. The only "proof of ownership" is a linked chat identifier.
-If Telegram were hijacked, all agents would continue following commands
-as if nothing happened.
-
-During operation the system repeatedly processed external documents —
-and it became clear that a malicious instruction in text is
-indistinguishable from an owner's command. The question was not "if"
-but "when."
-
-`totp-presence` is the answer before it became an incident: give one's
-own agents grounds for believing that commands come from the owner.
-This repository extracts a working solution into a reusable form.
+Extracted from the author's production setup — autonomous AI agents
+on Telegram whose only proof of ownership was a linked chat
+identifier. After repeatedly processing external documents it became
+clear that a malicious instruction in text is indistinguishable from
+an owner's command, so the working solution was packaged into a
+reusable form.
 
 ## Prior art
 
-A prior-art search (April 2026) found no earlier description of this
-exact pattern. Related work:
-
-- **[IBM + Auth0 + Yubico, RSAC 2026](https://www.ibm.com/new/announcements/securing-agentic-ai-why-automation-still-needs-human-oversight)** —
-  "Human-in-the-Loop authorization framework" for agentic AI.
-  Same core idea: cryptographic proof of human presence before
-  high-risk agent actions. Their approach is enterprise-grade
-  (watsonx.ai + CIBA + YubiKey hardware key, per-action consent).
-  `totp-presence` solves the same problem for individual developers:
-  zero dependencies, any agent, any MCP client.
-- **[Checkmarx Zero, 2025](https://checkmarx.com/zero-post/turning-ai-safeguards-into-weapons-with-hitl-dialog-forging/)** —
-  "Lies-in-the-Loop / HITL Dialog Forging" identifies the problem,
-  says "no silver bullet," offers no solution. This repository is a
-  possible answer.
-- **1Password + Browserbase, Authn8, open2fa, etc.** — TOTP in the
-  *reverse* direction: agents prove themselves to services. Here —
-  the opposite: a human proves themselves to an agent.
+Comparison with related work (IBM + Auth0 + Yubico, Checkmarx Zero,
+reverse-direction TOTP libraries) — [PRIOR_ART.md](./PRIOR_ART.md).
 
 ## License
 
@@ -428,39 +330,30 @@ Apache License 2.0. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
 The license includes an explicit patent grant — the pattern cannot be
 closed off by a retroactive patent.
 
-## Status and Roadmap
+## Status
 
 **Released — v0.2.0, actively maintained.** In daily use on the
 author's production agents (three Claude Code instances, full
-install-to-production cycle). See [CHANGELOG.md](./CHANGELOG.md) for
-per-version notes.
+install-to-production cycle). Per-version notes —
+[CHANGELOG.md](./CHANGELOG.md).
 
-**Done:**
+**Shipped:**
 
-- [x] Core: `verify.sh` (TOTP + brute-force protection) + `setup.sh` (install/uninstall/status)
-- [x] Claude Code hook integration — full-lockdown + selective modes
-- [x] MCP server integration — works in any MCP client
-- [x] Soft-prompt integration
-- [x] [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
-- [x] Per-user ephemeral session files (FHS-compliant v2 layout, v0.2.0)
-- [x] Internal pre-release security audit — C1 + H1–H3 + M1–M3 + L1–L5 closed (v0.2.0)
-- [x] Versioning + CHANGELOG + tagged releases (v0.2.0)
+- Core: `verify.sh` (TOTP + brute-force protection) and `setup.sh`
+  (install / uninstall / status / update)
+- Three reference integrations: Claude Code hook (full + selective
+  lockdown), MCP server (any MCP client), soft prompt
+- Per-user ephemeral session files, FHS-compliant layout
+- Internal pre-release security audit — C1, H1–H3, M1–M3, L1–L5 closed
+- Test suite ([bats](./tests/README.md)) — 49 hook tests + 15 core tests
+- CI with shellcheck + bats on macOS + Ubuntu
+- Versioning, CHANGELOG, tagged releases
+- [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
 
-**Pre-1.0 roadmap:**
+**Open:**
 
-- [x] Test suite ([bats](./tests/README.md)) for core and hook — 49 hook tests + 15 core tests *(implemented, pending next release tag)*
-- [x] CI with lint + tests (matrix: macOS + Ubuntu) — shellcheck + bats hook suite *(implemented, pending next release tag)*
-- [ ] Live-system installation testing on Linux (Ubuntu + Fedora)
-- [x] `update` mode for `setup.sh` / `install.sh` — preserve seed across upgrades *(implemented, pending next release tag)*
-- [ ] Demo recording (asciinema / gif)
-
-**Post-1.0:**
-
-- [ ] Claude Code plugin package
-- [x] Read/write semantic split in hook — diagnostic reads (`cat settings.json`, `grep hook settings.json`, `head CLAUDE.md`, …) pass without TOTP; writes still require it *(implemented, pending next release tag)*
-- [ ] Homebrew formula + one-command installer
-- [ ] Notification before session-window expiry
-- [ ] Native Windows support (PowerShell + DPAPI)
+- Live-system installation testing on Linux (Ubuntu + Fedora)
+- Demo recording (asciinema / gif)
 
 ---
 

@@ -10,34 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Claude Code hook: read/write split for Bash on protected config
-  paths. A clearly read-only command (`cat`, `head`, `tail`, `grep`,
-  `wc`, `stat`, `file`, `ls`, `diff`, `awk`, `find`, `jq`, `cut`,
-  `sort`, `uniq`, …) targeting a protected path (`settings.json`,
-  `settings.local.json`, `.claude.json`, `CLAUDE.md`,
-  `.claude/agents/*`) now passes without a TOTP session. Writes
-  still require the 120s config-window session.
-  The classifier is conservative: the first token must be on the
-  read-only allowlist AND the command must contain no write markers
-  anywhere (`>`, `<(`, `;`, `&&`, `||`, backticks, `tee`, `sed -i`,
-  `cp`, `mv`, `rm`, `rmdir`, `chmod`, `chown`, `install`, `touch`,
-  `dd`, `ln`, `find -delete`, `find -exec`). Anything ambiguous
-  falls through to the existing config-window deny — the human
-  still gets asked for a code, which is recoverable. A false
-  negative (a write mis-classified as read) would bypass TOTP, so
-  the classifier errs on the side of reject.
-  Motivation: the agent frequently wants to inspect a config file
-  (`cat ~/.claude/settings.json`, `grep hook ~/.claude/settings.json`)
-  for diagnosis. Gating every such read on a fresh 6-digit code
-  burned the human's attention without moving any
-  security-relevant state. Edit / Write still require TOTP because
-  those tools are write-only by semantics; read-side access from
-  the agent uses the `Read` tool, which was already on the
-  read-only exit list.
+  paths. Diagnostic read-only commands (`cat`, `head`, `grep`, `jq`,
+  …) on `settings.json`, `.claude.json`, `CLAUDE.md` and friends now
+  pass without a TOTP session; writes still require the 120s
+  config-window session. Full classifier rules and motivation —
+  [SECURITY_MODEL.md, §5b](./SECURITY_MODEL.md#5b-modification-of-agent-configuration-via-shell-commands).
   Test coverage: 15 new cases in
-  `tests/hook/guard_config_protection.bats` (cat / head / grep /
-  wc / stat / read pipelines / jq allowed; output redirect /
-  append / semicolon / tee-in-chain / find -delete /
-  find -exec / non-whitelisted first token denied).
+  `tests/hook/guard_config_protection.bats`.
 
 ## [0.2.0] — 2026-04-17
 

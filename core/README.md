@@ -192,8 +192,3 @@ Minimum:
 
 A real-world example — [../examples/claude-code-hook/](../examples/claude-code-hook/).
 
-## Why so little
-
-Less code — smaller audit surface. Less state — fewer ways to make a
-mistake. The core does one thing, does it well, and the rest is the
-integration's concern.
