@@ -180,6 +180,51 @@ ensure_dir() {
     return 0
 }
 
+# Atomic, symlink-safe write of a root-owned file. Reads the file's
+# contents from stdin, stages it via mktemp alongside the target,
+# sets owner and 644 mode on the temp file, and renames into place.
+#
+# Refuses to overwrite an existing symlink at the target: a hostile
+# symlink could redirect the write to a root-writable file
+# (e.g. /etc/shadow) and mv -f would happily follow it. This check is
+# the steady-state defence; the parent directory's perms are the
+# layer that stops a symlink from appearing in the first place.
+#
+# Usage:
+#   printf '%s\n' "$content" | atomic_write_root_644 "$target_path"
+#
+# Return:
+#   0 - file is in place with the requested contents
+#   1 - any step failed (symlink present, mktemp, write, mv); an error
+#       message is emitted to stderr. Caller decides whether to fail
+#       open (exit 1) or fail closed (exit 3 = lockout) depending on
+#       how security-critical the persistence is.
+atomic_write_root_644() {
+    local target="$1"
+    if [ -L "$target" ]; then
+        echo "error: refusing to write through symlink at $target" >&2
+        return 1
+    fi
+    local tmp
+    tmp=$(mktemp "${target}.XXXXXX") || {
+        echo "error: failed to create temporary file alongside $target" >&2
+        return 1
+    }
+    if ! cat > "$tmp"; then
+        rm -f "$tmp"
+        echo "error: failed to write temporary file for $target" >&2
+        return 1
+    fi
+    set_root_owner "$tmp"
+    chmod 644 "$tmp"
+    if ! mv -f "$tmp" "$target"; then
+        rm -f "$tmp"
+        echo "error: failed to move temporary file into place at $target" >&2
+        return 1
+    fi
+    return 0
+}
+
 # Lazy migration v1 → v2: in v1 the fail-counter lived under
 # /etc/totp-presence/. Move it to the runtime base on the first run
 # under v2. After a single move it is gone from the legacy location;
@@ -532,51 +577,20 @@ fi
 
 if [ "$RESULT" != "VALID" ]; then
     NEW_COUNT=$(( FAIL_COUNT + 1 ))
-    # Atomic, symlink-safe update of the fail-counter, mirroring the
-    # session-write below. Direct redirection ('> "$FAIL_COUNTER_FILE"')
-    # follows symlinks: if a hostile symlink were planted at this path
-    # (root-only to plant in the runtime base, but possible via earlier
-    # bug or install error), the brute-force bookkeeping would land
-    # somewhere root can write — e.g. /etc/shadow.
-    #
     # Fail-closed discipline: any error that prevents the counter from
-    # being incremented on disk MUST block this verify attempt as
-    # firmly as a successful increment would have done. Previously a
-    # write failure (symlink detected, mktemp failed, disk full, mv
-    # failed) exited with code 1, which the caller would interpret as
-    # "usage error, no attempt recorded". An attacker who can induce
-    # write failures (filesystem filling, hostile symlink placement
-    # under an earlier bug, rename-race) would then be able to test
-    # codes indefinitely without ever incrementing FAIL_COUNT. Treat
-    # write failure identically to reaching the lockout threshold:
-    # emit exit 3 so the caller backs off and so the surface is
-    # equivalent to "counter saturated" from the outside. The
-    # distinct error text on stderr lets a human operator
-    # differentiate the cause.
-    fail_closed_lockout() {
-        echo "error: $1" >&2
+    # being incremented on disk must block this verify attempt as
+    # firmly as a successful increment would have. Previously a write
+    # failure exited with code 1, which callers interpreted as "usage
+    # error, no attempt recorded". An attacker who can induce write
+    # failures (filesystem filling, hostile symlink placement, rename
+    # race) would then test codes indefinitely without ever driving
+    # FAIL_COUNT toward the lockout threshold. Treat persistence
+    # failure identically to reaching the threshold: emit exit 3 so
+    # the outside observer sees lockout semantics regardless of
+    # whether the counter itself could be updated.
+    if ! printf '%s\n%s\n' "$NEW_COUNT" "$NOW" | atomic_write_root_644 "$FAIL_COUNTER_FILE"; then
         echo "locked out for $LOCKOUT_SECONDS seconds (attempt recorded as a consecutive failure because the counter could not be persisted). Restore disk health and retry after the window expires." >&2
         exit 3
-    }
-
-    if [ -L "$FAIL_COUNTER_FILE" ]; then
-        fail_closed_lockout "refusing to write through symlink at $FAIL_COUNTER_FILE"
-    fi
-    TMP_FC=$(mktemp "${FAIL_COUNTER_FILE}.XXXXXX") || {
-        fail_closed_lockout "failed to create temporary fail-counter alongside $FAIL_COUNTER_FILE"
-    }
-    if ! {
-        printf '%s\n' "$NEW_COUNT"
-        printf '%s\n' "$NOW"
-    } > "$TMP_FC"; then
-        rm -f "$TMP_FC"
-        fail_closed_lockout "failed to write temporary fail-counter"
-    fi
-    set_root_owner "$TMP_FC"
-    chmod 644 "$TMP_FC"
-    if ! mv -f "$TMP_FC" "$FAIL_COUNTER_FILE"; then
-        rm -f "$TMP_FC"
-        fail_closed_lockout "failed to move temporary fail-counter into place at $FAIL_COUNTER_FILE"
     fi
 
     if [ "$NEW_COUNT" -ge "$MAX_FAILS" ]; then
@@ -596,18 +610,12 @@ fi
 
 # -------- write session (optional) --------
 #
-# Atomic, symlink-safe write:
-#   1. Refuse to write through an existing symlink at SESSION_PATH —
-#      a hostile symlink could redirect the timestamp write to /etc/shadow
-#      or any root-writable file.
-#   2. Stage the new contents in a temp file (mktemp creates with a
-#      random suffix in the same directory, so the rename below is on
-#      the same filesystem and is atomic). The temp file gets the
-#      target ownership and mode before the rename, so consumers
-#      never observe a half-written session file with wrong perms.
-#   3. mv -f replaces the target atomically. If the target was a
-#      regular file, it is unlinked. If the target did not exist,
-#      it is created. Either way, no partial state is observable.
+# A session write failure is NOT fail-closed: unlike the fail-counter,
+# a missing session file cannot be mistaken for "verification
+# succeeded". If the write fails, the integration simply observes no
+# session and treats the interaction as unauthenticated, which is the
+# safe default. Exit 1 with a descriptive error so the integration
+# can surface the disk/filesystem problem to the user.
 
 if [ "$SESSION_FLAG" = "--session" ] && [ -n "$SESSION_PATH" ]; then
     # Lazy-create the per-user runtime directory only when we are
@@ -618,24 +626,7 @@ if [ "$SESSION_FLAG" = "--session" ] && [ -n "$SESSION_PATH" ]; then
         echo "error: failed to create per-user runtime directory at $USER_RUNTIME_DIR" >&2
         exit 1
     }
-    if [ -L "$SESSION_PATH" ]; then
-        echo "error: refusing to write through symlink at $SESSION_PATH" >&2
-        exit 1
-    fi
-    TMP_SESSION=$(mktemp "${SESSION_PATH}.XXXXXX") || {
-        echo "error: failed to create temporary session file alongside $SESSION_PATH" >&2
-        exit 1
-    }
-    if ! date +%s > "$TMP_SESSION"; then
-        rm -f "$TMP_SESSION"
-        echo "error: failed to write temporary session file" >&2
-        exit 1
-    fi
-    set_root_owner "$TMP_SESSION"
-    chmod 644 "$TMP_SESSION"
-    if ! mv -f "$TMP_SESSION" "$SESSION_PATH"; then
-        rm -f "$TMP_SESSION"
-        echo "error: failed to move temporary session file into place at $SESSION_PATH" >&2
+    if ! date +%s | atomic_write_root_644 "$SESSION_PATH"; then
         exit 1
     fi
 fi
