@@ -512,28 +512,45 @@ if [ "$RESULT" != "VALID" ]; then
     # (root-only to plant in the runtime base, but possible via earlier
     # bug or install error), the brute-force bookkeeping would land
     # somewhere root can write — e.g. /etc/shadow.
+    #
+    # Fail-closed discipline: any error that prevents the counter from
+    # being incremented on disk MUST block this verify attempt as
+    # firmly as a successful increment would have done. Previously a
+    # write failure (symlink detected, mktemp failed, disk full, mv
+    # failed) exited with code 1, which the caller would interpret as
+    # "usage error, no attempt recorded". An attacker who can induce
+    # write failures (filesystem filling, hostile symlink placement
+    # under an earlier bug, rename-race) would then be able to test
+    # codes indefinitely without ever incrementing FAIL_COUNT. Treat
+    # write failure identically to reaching the lockout threshold:
+    # emit exit 3 so the caller backs off and so the surface is
+    # equivalent to "counter saturated" from the outside. The
+    # distinct error text on stderr lets a human operator
+    # differentiate the cause.
+    fail_closed_lockout() {
+        echo "error: $1" >&2
+        echo "locked out for $LOCKOUT_SECONDS seconds (attempt recorded as a consecutive failure because the counter could not be persisted). Restore disk health and retry after the window expires." >&2
+        exit 3
+    }
+
     if [ -L "$FAIL_COUNTER_FILE" ]; then
-        echo "error: refusing to write through symlink at $FAIL_COUNTER_FILE" >&2
-        exit 1
+        fail_closed_lockout "refusing to write through symlink at $FAIL_COUNTER_FILE"
     fi
     TMP_FC=$(mktemp "${FAIL_COUNTER_FILE}.XXXXXX") || {
-        echo "error: failed to create temporary fail-counter alongside $FAIL_COUNTER_FILE" >&2
-        exit 1
+        fail_closed_lockout "failed to create temporary fail-counter alongside $FAIL_COUNTER_FILE"
     }
     if ! {
         printf '%s\n' "$NEW_COUNT"
         printf '%s\n' "$NOW"
     } > "$TMP_FC"; then
         rm -f "$TMP_FC"
-        echo "error: failed to write temporary fail-counter" >&2
-        exit 1
+        fail_closed_lockout "failed to write temporary fail-counter"
     fi
     set_root_owner "$TMP_FC"
     chmod 644 "$TMP_FC"
     if ! mv -f "$TMP_FC" "$FAIL_COUNTER_FILE"; then
         rm -f "$TMP_FC"
-        echo "error: failed to move temporary fail-counter into place at $FAIL_COUNTER_FILE" >&2
-        exit 1
+        fail_closed_lockout "failed to move temporary fail-counter into place at $FAIL_COUNTER_FILE"
     fi
 
     if [ "$NEW_COUNT" -ge "$MAX_FAILS" ]; then
