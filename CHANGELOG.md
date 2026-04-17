@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — post-v0.2.0 audit (four medium-severity bugs)
+
+- **Fail-closed on brute-force counter persistence errors.** Previously
+  any write error on `fail-counter` (hostile symlink at target, mktemp
+  failure, disk full, rename failure) exited with code 1, leaving the
+  counter unchanged. An attacker who could induce write failures
+  (filesystem filling, rename races) could test codes indefinitely
+  without driving `FAIL_COUNT` toward lockout. All write-path errors
+  now exit 3 with a stderr message distinguishing persistence failure
+  from a genuine consecutive-failure lockout — outside observer sees
+  the lockout either way.
+- **`reclaim_if_stale` no longer races against a freshly-acquired lock.**
+  The stale-lock detector previously stat()ed the lock directory once
+  and then rmdir()ed if it was old enough. Between stat and rmdir
+  another verify could acquire the lock, leaving the detector to wipe
+  a live mutex. Re-stat immediately before rmdir and skip the removal
+  if the second look shows a recent mtime.
+- **`trap cleanup_lock` gated on successful acquisition.** Previously
+  the EXIT trap unconditionally removed the lock directory on any exit
+  path. A verify that timed out waiting would therefore rmdir whoever
+  had just acquired the lock — including a live verify. A `LOCK_OWNED`
+  flag is set only after this process's own `mkdir` returned success;
+  `cleanup_lock` returns early if it is still zero.
+- **Distinguish python3 interpreter failure from invalid code.**
+  Previously any non-zero exit from the inline `python3 -c` (missing
+  stdlib module, OOM, signal) produced an empty `$RESULT` and was
+  treated as "code does not match", incrementing the fail-counter.
+  Five interpreter crashes in a row pushed a legitimate user into a
+  five-minute lockout for no reason they could diagnose. Capture
+  `$?` into `PY_EXIT`, surface interpreter failure with a distinct
+  error, and do not touch the counter on crash or unexpected stdout.
+
+### Hardened — Phase 2 of the audit plan
+
+- **Seed passed to python3 via stdin, not env var.** Removes the seed
+  from `/proc/<pid>/environ` where it was previously visible for the
+  lifetime of the python child. Root-readable only on Linux, but not
+  being on disk at all is a stronger posture.
+- **Seed normalisation and shape check.** `verify.sh` now strips
+  whitespace from the seed file contents before feeding python and
+  rejects empty or non-base32 input up front. Previously a CRLF- or
+  whitespace-tainted seed (e.g. edited on Windows) produced silent
+  authentication failure indistinguishable from an attacker submitting
+  wrong codes; now it produces a clear error pointing at the reinstall
+  command.
+- **Bash-native regex for SUDO_USER and code shape.** Replaced
+  `printf %s $X | grep -qE '^pattern$'` with `[[ $X =~ ^pattern$ ]]`.
+  One process instead of two, no locale sensitivity in the matcher,
+  pattern visible inline next to the check.
+
 ### Added
 
 - Core lifecycle test coverage: 11 new destructive tests in
