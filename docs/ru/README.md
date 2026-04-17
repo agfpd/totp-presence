@@ -335,7 +335,7 @@ Zero, библиотеки TOTP в обратном направлении) —
 
 ## Лицензия
 
-Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
+Apache License 2.0. См. [LICENSE](../../LICENSE) и [NOTICE](../../NOTICE).
 Лицензия включает явный patent grant — паттерн нельзя закрыть
 патентом задним числом.
 
@@ -344,7 +344,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 **Релиз — v0.2.0, активно поддерживается.** Используется ежедневно на
 боевых агентах автора (три экземпляра Claude Code, полный цикл от
 установки до промышленной эксплуатации). Заметки по версиям —
-[CHANGELOG.md](./CHANGELOG.md).
+[CHANGELOG.md](../../CHANGELOG.md).
 
 **Реализовано:**
 
@@ -355,7 +355,7 @@ Apache License 2.0. См. [LICENSE](./LICENSE) и [NOTICE](./NOTICE).
 - Файлы сессий по пользователям, временные, по схеме FHS
 - Внутренний предрелизный аудит безопасности — закрыты C1, H1–H3,
   M1–M3, L1–L5
-- Набор тестов ([bats](./tests/README.md)) — 49 для hook + 15 для ядра
+- Набор тестов ([bats](../../tests/README.md)) — 49 для hook + 15 для ядра
 - Непрерывная интеграция: shellcheck и bats на macOS и Ubuntu
 - Версионирование, CHANGELOG, релиз-теги
 - [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
