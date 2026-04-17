@@ -116,12 +116,93 @@ assert_output_contains() {
 # ---------- core verify helpers ----------
 
 VERIFY="/etc/totp-presence/verify"
+SECRET_FILE="/etc/totp-presence/secret"
+RUNTIME_BASE="/var/run/totp-presence"
+FAIL_COUNTER_FILE="/var/run/totp-presence/fail-counter"
 DUMMY_CODE="000000"
 
 core_installed() {
-    [ -x "$VERIFY" ] && [ -f "/etc/totp-presence/secret" ]
+    [ -x "$VERIFY" ] && [ -f "$SECRET_FILE" ]
 }
 
 require_core_installed() {
     core_installed || skip "totp-presence core not installed at $VERIFY (run sudo ./core/setup.sh install)"
+}
+
+# ---------- core lifecycle helpers ----------
+#
+# Lifecycle tests are destructive: they trip the real fail-counter, make
+# several consecutive invalid attempts, and reset state between tests.
+# They require:
+#   - a core install from a KNOWN seed (TOTP_PRESENCE_TEST_SEED)
+#   - passwordless sudo for the invoking user
+#   - TOTP_PRESENCE_TEST_MODE=1 so the brute-force constants can be
+#     compressed via env overrides (see core/verify.sh)
+#
+# To prevent accidental local runs that trip the real counter against
+# the real seed, require an explicit opt-in via TOTP_PRESENCE_RUN_LIFECYCLE=1.
+
+require_lifecycle_env() {
+    if [ "${TOTP_PRESENCE_RUN_LIFECYCLE:-}" != "1" ]; then
+        skip "lifecycle tests disabled — set TOTP_PRESENCE_RUN_LIFECYCLE=1 to opt in (they are destructive; only run in CI or a throwaway dev box)"
+    fi
+    core_installed || skip "core not installed"
+    command -v python3 >/dev/null 2>&1 || skip "python3 required for TOTP helper"
+    if ! sudo -n true 2>/dev/null; then
+        skip "passwordless sudo required for lifecycle tests"
+    fi
+}
+
+# Generate a valid 6-digit TOTP code for a given base32 secret and a
+# 30-second-step offset (0 = now, -1 = previous step, +1 = next step).
+# Mirrors the RFC 6238 implementation in core/verify.sh byte-for-byte
+# so a code produced here is accepted by the same verifier.
+generate_totp_code() {
+    local secret="$1"
+    local offset="${2:-0}"
+    SECRET="$secret" OFFSET="$offset" python3 -c '
+import hmac, hashlib, struct, time, base64, os
+key = base64.b32decode(os.environ["SECRET"], casefold=True)
+counter = (int(time.time()) // 30) + int(os.environ.get("OFFSET", "0"))
+msg = struct.pack(">Q", counter)
+digest = hmac.new(key, msg, hashlib.sha1).digest()
+ob = digest[-1] & 0x0F
+tr = struct.unpack(">I", digest[ob:ob + 4])[0] & 0x7FFFFFFF
+print(f"{tr % 1000000:06d}")
+'
+}
+
+# Read the installed seed (root:wheel 600) via sudo cat. Only callable
+# from lifecycle tests (guarded by require_lifecycle_env).
+read_installed_secret() {
+    sudo -n cat "$SECRET_FILE" 2>/dev/null
+}
+
+# Invoke verify.sh from the source tree (not the installed path) under
+# test-mode env, so MAX_FAILS_OVERRIDE / LOCKOUT_SECONDS_OVERRIDE take
+# effect. `sudo -E` preserves the env vars in CI and on dev boxes where
+# sudoers allows it. We also set SUDO_USER explicitly to cover setups
+# where sudo would otherwise strip or munge it.
+#
+# Args: code [--session path] …
+# Env in:
+#   MAX_FAILS_OVERRIDE (optional)
+#   LOCKOUT_SECONDS_OVERRIDE (optional)
+# Exit: same as verify.sh (0 ok, 1 usage/missing, 2 invalid, 3 lockout)
+core_verify_testmode() {
+    local max_fails="${MAX_FAILS_OVERRIDE:-5}"
+    local lockout_seconds="${LOCKOUT_SECONDS_OVERRIDE:-300}"
+    sudo -n -E env \
+        TOTP_PRESENCE_TEST_MODE=1 \
+        MAX_FAILS_OVERRIDE="$max_fails" \
+        LOCKOUT_SECONDS_OVERRIDE="$lockout_seconds" \
+        SUDO_USER="$USER" \
+        bash "$PROJECT_ROOT/core/verify.sh" "$@"
+}
+
+# Clear any pending fail-counter + stale lock directory between tests so
+# a failure in one test doesn't cascade into the next.
+reset_verify_runtime() {
+    sudo -n rm -f "$FAIL_COUNTER_FILE" 2>/dev/null || true
+    sudo -n rmdir "$RUNTIME_BASE/.verify-lock" 2>/dev/null || true
 }
