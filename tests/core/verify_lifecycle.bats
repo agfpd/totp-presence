@@ -174,8 +174,15 @@ teardown() {
     bait="$(mktemp -u /tmp/totp-presence-bait.XXXXXX)"
     sudo -n ln -s "$bait" "$FAIL_COUNTER_FILE"
     run core_verify_testmode "000000"
-    [ "$status" -eq 1 ] || { printf 'status=%d output=%s\n' "$status" "$output" >&2; return 1; }
+    # Write-path failures (including the symlink refusal) are treated
+    # as fail-closed by verify.sh: the attempt counts as a consecutive
+    # failure and verify emits exit 3 so the caller sees lockout
+    # semantics regardless of whether the counter itself could be
+    # persisted. The stderr message still includes "symlink" so
+    # operators can tell why the write failed.
+    [ "$status" -eq 3 ] || { printf 'status=%d output=%s\n' "$status" "$output" >&2; return 1; }
     assert_output_contains "symlink" || return 1
+    assert_output_contains "locked out" || return 1
     # The bait file must not have been written.
     [ ! -e "$bait" ] || { echo "bait file was created via symlink — write-protection bypassed"; sudo -n rm -f "$bait"; return 1; }
     # Cleanup the planted symlink (belt-and-braces — teardown would also
