@@ -116,6 +116,39 @@ LOCKOUT_SECONDS=300   # 5 minutes
 LOCK_TIMEOUT=30       # seconds — wait this long for an in-flight verify
 LOCK_STALE_AGE=60     # seconds — older than this is considered stale
 
+# -------- test-mode overrides --------
+#
+# The lifecycle tests need to trip a lockout and then watch it clear
+# within seconds, not 5 minutes. Re-reading the constants from env under
+# an explicit test-mode gate lets the test suite compress LOCKOUT_SECONDS
+# without touching the script.
+#
+# Why this is safe in production:
+#   The installed sudoers rule (see core/setup.sh) does NOT preserve env
+#   when a user invokes `sudo /etc/totp-presence/verify`. `sudo` strips
+#   everything outside its env_keep list, so TOTP_PRESENCE_TEST_MODE,
+#   MAX_FAILS_OVERRIDE and LOCKOUT_SECONDS_OVERRIDE set by a regular
+#   user never reach this script. The hook is only reachable when the
+#   caller explicitly invokes bash on the source tree under `sudo -E`,
+#   which requires root to begin with — i.e. tests in CI or on a dev box.
+#
+# Do not read these overrides in any path the installed sudoers rule
+# can reach.
+if [ "${TOTP_PRESENCE_TEST_MODE:-}" = "1" ]; then
+    if [ -n "${MAX_FAILS_OVERRIDE:-}" ]; then
+        case "$MAX_FAILS_OVERRIDE" in
+            ''|*[!0-9]*) : ;;  # ignore garbage
+            *) MAX_FAILS="$MAX_FAILS_OVERRIDE" ;;
+        esac
+    fi
+    if [ -n "${LOCKOUT_SECONDS_OVERRIDE:-}" ]; then
+        case "$LOCKOUT_SECONDS_OVERRIDE" in
+            ''|*[!0-9]*) : ;;
+            *) LOCKOUT_SECONDS="$LOCKOUT_SECONDS_OVERRIDE" ;;
+        esac
+    fi
+fi
+
 # -------- helpers --------
 
 set_root_owner() {

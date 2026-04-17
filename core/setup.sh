@@ -89,6 +89,38 @@ cmd_install() {
     require_os
     require_python
 
+    # -------- unattended mode --------
+    #
+    # Non-interactive install path for CI and automated tests. Requires
+    # TWO explicit signals so it is never triggered by accident:
+    #
+    #   1. The --unattended flag on the command line
+    #   2. The TOTP_PRESENCE_UNATTENDED_OK=1 environment variable
+    #
+    # Differences from interactive install:
+    #   - No "overwrite existing seed?" prompt (always overwrites)
+    #   - No otpauth URL printed (would leak the seed into CI logs)
+    #   - No QR rendering
+    #   - No 3-attempt self-test (no human at the keyboard)
+    #
+    # The seed can be supplied explicitly via TOTP_PRESENCE_TEST_SEED (a
+    # base32 string) — tests that need to generate valid codes use this
+    # to know the seed. If unset, a fresh seed is generated as usual but
+    # is NOT printed anywhere; the caller is expected not to need it.
+    #
+    # Refuse to run unless both gates are present, with a clear error.
+    local unattended=0
+    for arg in "$@"; do
+        case "$arg" in
+            --unattended) unattended=1 ;;
+        esac
+    done
+    if [ "$unattended" -eq 1 ]; then
+        if [ "${TOTP_PRESENCE_UNATTENDED_OK:-}" != "1" ]; then
+            die "--unattended requires TOTP_PRESENCE_UNATTENDED_OK=1 to be set. This mode is for CI and automated tests only; it skips the overwrite prompt, QR, and self-test. Do not run it on a machine you rely on."
+        fi
+    fi
+
     local user
     user="$(invoking_user)"
 
@@ -98,13 +130,18 @@ cmd_install() {
     say "$(c_bold 'totp-presence core install')"
     say "  install dir:  $INSTALL_DIR"
     say "  user:         $user"
+    [ "$unattended" -eq 1 ] && say "  mode:         unattended (CI / test)"
     say ""
 
     if [ -f "$SECRET_FILE" ]; then
-        warn "seed already exists at $SECRET_FILE"
-        printf '  overwrite it? existing authenticator pairings will break [y/N] '
-        read -r ans
-        case "$ans" in y|Y|yes) ok "overwriting existing seed" ;; *) die "aborted by user" ;; esac
+        if [ "$unattended" -eq 1 ]; then
+            warn "seed already exists at $SECRET_FILE — overwriting (unattended)"
+        else
+            warn "seed already exists at $SECRET_FILE"
+            printf '  overwrite it? existing authenticator pairings will break [y/N] '
+            read -r ans
+            case "$ans" in y|Y|yes) ok "overwriting existing seed" ;; *) die "aborted by user" ;; esac
+        fi
     fi
 
     mkdir -p "$INSTALL_DIR"
@@ -113,8 +150,19 @@ cmd_install() {
     ok "prepared $INSTALL_DIR"
 
     # Generate seed using system CSPRNG (os.urandom). No pip packages.
+    # In unattended mode, honour TOTP_PRESENCE_TEST_SEED if the caller
+    # pre-supplied a seed (the tests need a known seed to synthesise
+    # valid codes). A supplied seed is validated as a proper base32
+    # string so a typo doesn't leave an unusable install.
     local secret
-    secret=$(python3 -c 'import base64, os; print(base64.b32encode(os.urandom(20)).decode())')
+    if [ "$unattended" -eq 1 ] && [ -n "${TOTP_PRESENCE_TEST_SEED:-}" ]; then
+        if ! printf '%s' "$TOTP_PRESENCE_TEST_SEED" | python3 -c 'import sys, base64; base64.b32decode(sys.stdin.read().strip(), casefold=True)' 2>/dev/null; then
+            die "TOTP_PRESENCE_TEST_SEED is not valid base32"
+        fi
+        secret="$TOTP_PRESENCE_TEST_SEED"
+    else
+        secret=$(python3 -c 'import base64, os; print(base64.b32encode(os.urandom(20)).decode())')
+    fi
     printf '%s' "$secret" > "$SECRET_FILE"
     chown root:wheel "$SECRET_FILE" 2>/dev/null || chown root:root "$SECRET_FILE"
     chmod 600 "$SECRET_FILE"
@@ -161,6 +209,17 @@ EOF
         ok "installed $VERSION_FILE (v$VERSION)"
     else
         warn "VERSION source not found at $VERSION_SRC — core installed without version marker"
+    fi
+
+    # In unattended mode, skip the interactive pairing + self-test flow:
+    #   - no otpauth URL on stdout (would leak the seed into CI logs)
+    #   - no QR
+    #   - no 3-attempt self-test (nobody is at the keyboard)
+    if [ "$unattended" -eq 1 ]; then
+        say ""
+        ok "core installation complete (unattended)"
+        say ""
+        return 0
     fi
 
     # Print otpauth URL and optional QR.
