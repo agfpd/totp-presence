@@ -239,16 +239,32 @@ migrate_legacy_fail_counter
 # -------- serialize concurrent calls --------
 # mkdir is atomic on all POSIX systems (macOS + Linux). Ensures
 # brute-force counter cannot be bypassed by parallel forks.
-cleanup_lock() { rmdir "$LOCK_DIR" 2>/dev/null; }
+#
+# Lock-cleanup discipline: the trap must only remove the lock directory
+# if THIS process is the one that created it. Without this gate, a
+# verify that times out waiting (exit 1 below) would unconditionally
+# `rmdir` the lock — potentially wiping a freshly-acquired lock that
+# now belongs to another live verify, breaking the serialisation
+# guarantee for that verify.
+LOCK_OWNED=0
+cleanup_lock() {
+    [ "$LOCK_OWNED" = "1" ] || return 0
+    rmdir "$LOCK_DIR" 2>/dev/null
+}
 trap cleanup_lock EXIT
 
 # Try to detect a stale lock left behind by a SIGKILL'd / OOM'd verify
 # and reclaim it without manual `sudo rmdir`. If the lock dir is older
 # than LOCK_STALE_AGE seconds, no live verify can be holding it (any
 # real verify completes in well under a second, and clients are
-# serialised by us). Remove and retry once. If a second mkdir loses a
-# race against another verify that just reclaimed it, fall through
-# and wait normally — that one is fresh.
+# serialised by us).
+#
+# Race protection: another verify may have reclaimed the stale lock
+# between our stat() and our rmdir(), giving the directory a new
+# mtime. Re-check the mtime immediately before `rmdir` and only remove
+# if the directory is still older than LOCK_STALE_AGE on the second
+# look. If the second check says it is fresh, leave it alone — the new
+# holder is a live verify that deserves its mutual-exclusion guarantee.
 reclaim_if_stale() {
     if [ ! -d "$LOCK_DIR" ]; then
         return
@@ -259,7 +275,18 @@ reclaim_if_stale() {
                  || echo 0)
     now=$(date +%s)
     age=$(( now - lock_mtime ))
-    if [ "$age" -ge "$LOCK_STALE_AGE" ]; then
+    if [ "$age" -lt "$LOCK_STALE_AGE" ]; then
+        return
+    fi
+    # Re-stat right before rmdir to close the TOCTOU window. If the
+    # directory has been recreated since the first stat, its mtime will
+    # be recent and we must not remove it.
+    local recheck_mtime recheck_age
+    recheck_mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null \
+                    || stat -c %Y "$LOCK_DIR" 2>/dev/null \
+                    || echo 0)
+    recheck_age=$(( $(date +%s) - recheck_mtime ))
+    if [ "$recheck_age" -ge "$LOCK_STALE_AGE" ]; then
         rmdir "$LOCK_DIR" 2>/dev/null || true
     fi
 }
@@ -271,6 +298,7 @@ while ! mkdir "$LOCK_DIR" 2>/dev/null; do
         # path a chance before refusing the user.
         reclaim_if_stale
         if mkdir "$LOCK_DIR" 2>/dev/null; then
+            LOCK_OWNED=1
             break
         fi
         echo "error: lock acquisition timed out after ${LOCK_TIMEOUT}s (stale lock at $LOCK_DIR?). Remove manually: sudo rmdir $LOCK_DIR" >&2
@@ -278,6 +306,7 @@ while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     fi
     sleep 0.05
 done
+LOCK_OWNED=1
 
 # -------- parse arguments --------
 
