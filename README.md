@@ -7,8 +7,8 @@ Russian version: [README.ru.md](./README.ru.md)
 > How can an agent know it is talking to its owner — and not to text
 > that impersonates them?
 
-**Platforms:** macOS (production). Linux — code is portable, but
-live-system testing is on the roadmap. Windows — via WSL only.
+**Platforms:** macOS — working setup. Linux — code is portable but
+not yet tested on live systems. Windows — via WSL only.
 
 ## The problem: identity in text-based channels
 
@@ -54,11 +54,6 @@ This is the same channel-trust problem described above: the prompt
 trusts the channel ("there is a human at this terminal") and takes on
 faith that the human is the owner.
 
-TOTP closes this gap. A valid code requires possession of the device
-holding the secret — something text injection fundamentally cannot
-acquire. Physical access to the agent's machine is not enough on its
-own — the secret lives on a separate device.
-
 Three additional scenarios where the permission prompt does not apply
 at all:
 
@@ -70,10 +65,6 @@ at all:
   tools run without any confirmation — including under injection.
 - **Non-Claude-Code clients** — Cursor, Continue, Claude Desktop, and
   other MCP clients may have a different permission model or none.
-
-`totp-presence` works in all of these cases because it operates at a
-different layer: not "was a button clicked" but "does the person know
-a secret that only the owner's phone can produce."
 
 ## Solution
 
