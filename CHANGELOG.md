@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-04-18
+
+Audit-driven bugfix release. Four medium-severity bugs found in a
+multi-model code review of `core/verify.sh`, plus Phase 2 hardening
+and two non-behavioural refactors. No on-disk layout changes;
+upgrade path is the usual `sudo ./core/setup.sh update`.
+
 ### Fixed — post-v0.2.0 audit (four medium-severity bugs)
 
 - **Fail-closed on brute-force counter persistence errors.** Previously
@@ -56,6 +63,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `printf %s $X | grep -qE '^pattern$'` with `[[ $X =~ ^pattern$ ]]`.
   One process instead of two, no locale sensitivity in the matcher,
   pattern visible inline next to the check.
+
+### Refactored — behaviour-preserving
+
+- Extracted `atomic_write_root_644()` helper in `core/verify.sh`. The
+  symlink-check → mktemp → write → chown → chmod → mv pattern was
+  duplicated across the fail-counter update and the `--session`
+  timestamp write. Both sites now call the helper and decide their
+  own exit semantics (counter is fail-closed with exit 3, session is
+  fail-open with exit 1).
+- Fail-counter file is now parsed with a single `read -r` pair on a
+  redirected fd instead of two `sed -n '1p'` / `'2p'` invocations.
+  No subprocesses, uniform EOF handling, same sanitisation.
+
+### Docs
+
+- Reference section for `verify`'s exit codes refreshed in
+  `core/verify.sh` header, `core/README.md`, and
+  `docs/ru/core/README.md`. Exit 3 now covers both
+  threshold-lockout and persistence-failure lockout; exit 1 lists
+  python3 crash, unexpected output, session-write failure, and bad
+  seed format as counter-neutral errors.
 
 ### Added
 
