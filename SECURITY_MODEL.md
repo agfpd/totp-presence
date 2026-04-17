@@ -256,18 +256,31 @@ session check. The reasoning is the same as the rest of this layer:
 when the matcher cannot tell what the tool is doing, "deny and ask
 the human" is the only fail-safe answer.
 
-**Limitations of the Bash check.** Text search over the command
-string catches direct commands but does not catch obfuscation:
+**Limitations of the Bash check — explicitly recorded gaps.** Text
+search over the command string catches direct commands but does not
+catch obfuscation. These are known coverage gaps, not bugs awaiting a
+fix in the hook: closing them inside the hook is impossible without
+forbidding the agent from running arbitrary scripts on the host at
+all. They are closed at the filesystem layer instead (see below).
 
-- Variables: `FILE=settings.json; echo >> $FILE`
-- Encoding: `echo <base64> | base64 -d > file`
-- Eval: `eval "echo >> settings.json"`
-- Git: `git pull` can overwrite configuration files without
-  mentioning their names in the command
+| Vector | Example | Why the hook does not catch it | Complete coverage |
+|---|---|---|---|
+| Variable in path | `FILE=settings.json; echo >> $FILE` | Hook sees the command string as text; the variable only resolves at execution time, so `settings.json` never appears as the write target | `chflags uchg` / `chattr +i` on the config |
+| Decoding from base64 | `echo c2V0dGluZ3M... \| base64 -d > target` | Filename is encoded; decoding also happens at execution time | Same |
+| Deferred evaluation | `eval "echo >> settings.json"` | The argument to `eval` is a string literal, the hook does not run it before the agent does | Same |
+| Indirection through a script | `bash /tmp/x.sh` whose contents write to a config | Hook sees only the script invocation, not its contents | Same |
+| Overwrite via SCM tools | `git pull`, `git checkout file`, `git stash pop` | The command does not name config files in argv; the change arrives from the index | Same |
 
-False positives are possible: `git commit -m "updated CLAUDE.md"`
-will be blocked even though the command is benign. Resolved by
-rephrasing.
+These paths are deliberately passed through so that the hook remains
+a deterministic text filter. Trying to "guess what the command will
+actually do" is a path to false positives on benign pipelines and
+bypasses on malicious ones. Instead, the hook honestly delimits the
+region where it works, and the owner closes the rest at the filesystem
+layer — where bypass is not possible without root.
+
+False positives on legitimate commands are possible:
+`git commit -m "updated CLAUDE.md"` will be blocked even though the
+command is benign. Resolved by rephrasing.
 
 **The core is immune to this vector.** The secret key, session file,
 hook configuration, verifier — all owned by root. A shell command

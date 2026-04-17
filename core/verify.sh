@@ -123,17 +123,31 @@ LOCK_STALE_AGE=60     # seconds — older than this is considered stale
 # an explicit test-mode gate lets the test suite compress LOCKOUT_SECONDS
 # without touching the script.
 #
-# Why this is safe in production:
-#   The installed sudoers rule (see core/setup.sh) does NOT preserve env
-#   when a user invokes `sudo /etc/totp-presence/verify`. `sudo` strips
-#   everything outside its env_keep list, so TOTP_PRESENCE_TEST_MODE,
-#   MAX_FAILS_OVERRIDE and LOCKOUT_SECONDS_OVERRIDE set by a regular
-#   user never reach this script. The hook is only reachable when the
-#   caller explicitly invokes bash on the source tree under `sudo -E`,
-#   which requires root to begin with — i.e. tests in CI or on a dev box.
+# Two layers of defence keep this out of production:
 #
-# Do not read these overrides in any path the installed sudoers rule
-# can reach.
+# 1. sudoers: the installed rule
+#        $user ALL=(root) NOPASSWD: /etc/totp-presence/verify
+#    does NOT carry the `SETENV` tag and sudo's default `env_reset`
+#    strips everything outside `env_keep`. A regular user cannot get
+#    TOTP_PRESENCE_TEST_MODE, MAX_FAILS_OVERRIDE or LOCKOUT_SECONDS_OVERRIDE
+#    into the script's environment via `sudo /etc/totp-presence/verify`.
+#
+# 2. self-path check: even if a local admin were to add `SETENV` to the
+#    sudoers rule or widen `env_keep`, the overrides are only honoured
+#    when this script is invoked from the source tree (its filename
+#    ends with core/verify.sh or bare verify.sh). The installed path
+#    /etc/totp-presence/verify never activates test mode, regardless
+#    of the environment. Tests bypass this by running bash directly on
+#    the source file under sudo; production users never reach that path.
+case "$0" in
+    */core/verify.sh|core/verify.sh|verify.sh) : ;;
+    *)
+        # Running as installed verifier or some other path — disable
+        # test-mode overrides unconditionally.
+        unset TOTP_PRESENCE_TEST_MODE MAX_FAILS_OVERRIDE LOCKOUT_SECONDS_OVERRIDE
+        ;;
+esac
+
 if [ "${TOTP_PRESENCE_TEST_MODE:-}" = "1" ]; then
     if [ -n "${MAX_FAILS_OVERRIDE:-}" ]; then
         case "$MAX_FAILS_OVERRIDE" in
