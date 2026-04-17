@@ -1,15 +1,18 @@
 name: ci
 
-# Runs on every push and pull request against main. Three parallel jobs:
+# Runs on every push and pull request against main. Parallel jobs:
 #   - shellcheck on all .sh files (static analysis)
 #   - bats hook tests on ubuntu-latest (no sudo, sandbox via sed rewrite)
 #   - bats hook tests on macos-latest  (same, validates bash 3.2 + BSD date)
+#   - bats core lifecycle tests on ubuntu-latest (live install, unattended)
 #
-# Core tests (tests/core/) are not run in CI: they require a live
-# installation of /etc/totp-presence/verify + sudoers NOPASSWD, which
-# needs a paired authenticator. Headless install is on the roadmap.
-# For now, the path-validation regressions that live in tests/core/ are
-# run locally before every release.
+# Core lifecycle tests are destructive and need a real /etc/totp-presence
+# seed. In CI we use the --unattended install path (gated behind
+# TOTP_PRESENCE_UNATTENDED_OK=1 — see core/setup.sh) with a fixed test
+# seed, then exercise verify.sh via the tests/core/verify_lifecycle.bats
+# suite. macOS coverage for the lifecycle suite is deferred until the
+# ubuntu job has been green for a few releases — macOS runner minutes
+# are 10× more expensive and the lifecycle code path is OS-agnostic.
 
 on:
   push:
@@ -60,6 +63,49 @@ jobs:
         # tests/hook/ is sandboxed via sed path-rewrite; no sudo, no
         # /etc/totp-presence, no /var/run/totp-presence on disk.
         run: bats tests/hook/
+
+  core-lifecycle-ubuntu:
+    name: bats core lifecycle (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Report environment
+        run: |
+          bats --version
+          bash --version | head -1
+          python3 --version
+
+      - name: Unattended core install with fixed test seed
+        # --unattended skips the overwrite prompt, the otpauth URL (would
+        # leak the seed into CI logs), the QR, and the 3-attempt self-test.
+        # TOTP_PRESENCE_UNATTENDED_OK=1 is the second gate required to
+        # reach that path (see cmd_install in core/setup.sh). The test
+        # seed is fixed to a known base32 value so the bats suite's TOTP
+        # helper and the installed verifier agree on codes.
+        #
+        # Env is passed on the command line (not via `sudo -E`) because
+        # the default `env_reset` in sudoers on stock ubuntu would strip
+        # arbitrary vars; `sudo VAR=value ...` is always honoured.
+        run: |
+          sudo \
+            TOTP_PRESENCE_UNATTENDED_OK=1 \
+            TOTP_PRESENCE_TEST_SEED=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP \
+            SUDO_USER="$USER" \
+            ./core/setup.sh install --unattended
+          ./core/setup.sh status
+
+      - name: Run core lifecycle + path-validation tests
+        # TOTP_PRESENCE_RUN_LIFECYCLE=1 opts the destructive lifecycle
+        # tests in. Without it, all 11 tests skip (verified locally).
+        # Also runs the path-validation suite that was previously
+        # release-gated only.
+        env:
+          TOTP_PRESENCE_RUN_LIFECYCLE: '1'
+        run: bats tests/core/
 
   hook-tests-macos:
     name: bats hook tests (macos-latest)
