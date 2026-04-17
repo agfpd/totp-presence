@@ -10,3 +10,6 @@
 # Local scratch
 scratch/
 tmp/
+
+# Local Claude Code state (per-agent memory, settings)
+.claude/
