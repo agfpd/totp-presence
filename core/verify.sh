@@ -422,6 +422,15 @@ SECRET=$(cat "$SECRET_FILE")
 # Inline TOTP verification using only Python standard library.
 # No pip dependencies. Implements RFC 6238 (TOTP) / RFC 4226 (HOTP).
 # The secret is passed via env var, not argv, so it never appears in `ps`.
+#
+# Exit-code discipline:
+#   - 0 with stdout "VALID"    -> code matches, session may be opened
+#   - 0 with stdout "INVALID"  -> code does not match, count the failure
+#   - non-zero                 -> interpreter or import error, NOT a
+#                                 failed verification. Surface as a
+#                                 distinct error so a crashed python3
+#                                 does not drive a legitimate user into
+#                                 the brute-force lockout.
 RESULT=$(SECRET="$SECRET" CODE="$CODE" python3 -c '
 import hmac, hashlib, struct, time, base64, os
 
@@ -449,8 +458,22 @@ for offset in range(-valid_window, valid_window + 1):
 
 print("INVALID")
 ')
+PY_EXIT=$?
 
 unset SECRET
+
+if [ "$PY_EXIT" -ne 0 ]; then
+    echo "error: TOTP computation failed (python3 exit $PY_EXIT). This is an interpreter or environment error, not a rejected code — no failure recorded." >&2
+    exit 1
+fi
+
+if [ "$RESULT" != "VALID" ] && [ "$RESULT" != "INVALID" ]; then
+    # Python returned 0 but stdout is neither VALID nor INVALID — this
+    # should not happen unless the script above is modified. Refuse to
+    # guess, exit without touching the fail-counter.
+    echo "error: unexpected TOTP verifier output. Not incrementing fail-counter." >&2
+    exit 1
+fi
 
 if [ "$RESULT" != "VALID" ]; then
     NEW_COUNT=$(( FAIL_COUNT + 1 ))
