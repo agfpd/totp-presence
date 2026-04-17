@@ -86,10 +86,16 @@ Pure verification. Reads the secret key, compares the 6-digit code
 (HMAC-SHA1, RFC 6238), returns an exit code:
 
 - `0` — code correct
-- `2` — code incorrect
-- `3` — locked out: too many consecutive incorrect attempts
-- `1` — error (empty input, missing key, missing python3, invalid
-  `--session` path, etc.)
+- `2` — code incorrect (fail-counter incremented)
+- `3` — locked out. Either the counter reached `MAX_FAILS` consecutive
+  failures in the last `LOCKOUT_SECONDS` window, or the counter could
+  not be persisted on this attempt (fail-closed: this blocks
+  brute-force via induced write failures). The stderr message tells
+  the two apart.
+- `1` — error without counter change: empty input, missing or
+  badly-formatted key, missing python3, invalid `--session` path,
+  session-file write failure, python3 interpreter failure, or
+  unexpected python3 output.
 
 Output: on success — `ok` on stdout. On error — a message on
 **stderr** (not stdout). This is important for scripting: stdout is

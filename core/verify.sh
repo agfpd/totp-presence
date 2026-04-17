@@ -63,9 +63,18 @@
 #
 # Exit codes:
 #   0 — code valid (session written if --session was passed)
-#   1 — usage error, missing seed, missing python3, invalid --session path
-#   2 — code invalid
-#   3 — locked out after too many consecutive failures (try later)
+#   1 — usage error, missing seed, bad seed format, missing python3,
+#       invalid --session path, session-file write failure (NOT
+#       fail-closed: an absent session is the safe default), python3
+#       interpreter failure, or unexpected python3 output. In every
+#       case the fail-counter is not touched.
+#   2 — code invalid (fail-counter incremented)
+#   3 — locked out. Either the counter reached MAX_FAILS consecutive
+#       failures in the last LOCKOUT_SECONDS window, or the counter
+#       could not be persisted on this attempt (fail-closed: from the
+#       outside an attacker cannot distinguish "counter saturated"
+#       from "counter not updated", so brute-force via write-failure
+#       is blocked). stderr disambiguates the cause.
 #
 # Security notes:
 #   - Must be run as root via sudo from a regular user account. The
