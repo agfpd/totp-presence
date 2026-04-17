@@ -456,13 +456,18 @@ fi
 #   line 2: unix timestamp of the last failure
 #
 # A missing/unreadable/garbled file is treated as "no failures yet".
+# Read both lines in a single pass with bash built-ins — no subprocesses,
+# empty lines and short files handled uniformly (`read` returns empty
+# string when the stream ends before the newline), all sanitisation
+# centralised in the case-statement below.
 
 FAIL_COUNT=0
 FAIL_LAST_TS=0
 if [ -r "$FAIL_COUNTER_FILE" ]; then
-    FAIL_COUNT=$(sed -n '1p' "$FAIL_COUNTER_FILE" 2>/dev/null || echo 0)
-    FAIL_LAST_TS=$(sed -n '2p' "$FAIL_COUNTER_FILE" 2>/dev/null || echo 0)
-    # Sanitize: require integers, otherwise reset.
+    { read -r FAIL_COUNT || true; read -r FAIL_LAST_TS || true; } < "$FAIL_COUNTER_FILE"
+    # Sanitize: require non-negative integers, otherwise reset. This is
+    # the single source of truth for the field format; the parser above
+    # just reads bytes.
     case "$FAIL_COUNT" in
         ''|*[!0-9]*) FAIL_COUNT=0 ;;
     esac
