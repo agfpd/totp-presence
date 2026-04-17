@@ -4,6 +4,8 @@ Russian version: [README.ru.md](./README.ru.md)
 
 # totp-presence
 
+*TOTP-based human presence signal for AI agents.*
+
 > How can an agent know it is talking to its owner — and not to text
 > that impersonates them?
 
