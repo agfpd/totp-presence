@@ -6,6 +6,10 @@ Russian version: [README.ru.md](./README.ru.md)
 
 *TOTP-based human presence signal for AI agents.*
 
+With this in place you can entrust the agent with SSH, GUI
+automation, password management — actions whose risk surface is too
+large without a per-step proof of human presence.
+
 > How can an agent know it is talking to its owner — and not to text
 > that impersonates them?
 
@@ -298,10 +302,11 @@ Boundaries, residual risks, threat model — [SECURITY_MODEL.md](./SECURITY_MODE
 Sender identity is not encoded in text, and no model improvement will
 add a cryptographic signature to plain text. As long as agents accept
 commands via text, they need a channel-independent way to ascertain
-who is on the other end. Adding this constraint also expands what you
-can safely entrust to the agent: with an independent confirmation per
-sensitive step, autonomous GUI automation, SSH, and password
-management become reasonable to delegate.
+who is on the other end. Hard lockdown becomes less critical with
+more capable models, but the core function — a verifiable identity
+signal — does not depend on model capability: it is about the absence
+of information in the channel, not about the model's ability to
+detect attacks.
 
 ## Origin
 
