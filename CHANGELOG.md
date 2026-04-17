@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Core lifecycle test coverage: 11 new destructive tests in
+  `tests/core/verify_lifecycle.bats` exercising successful verify,
+  `--session` file write (root:wheel 644), brute-force lockout + window
+  expiry, counter reset on success, `SUDO_USER` validation, missing
+  seed, and symlink refusal on the fail-counter. Gated behind
+  `TOTP_PRESENCE_RUN_LIFECYCLE=1`; every test skips cleanly when the
+  opt-in is absent. CI runs them on ubuntu-latest against a fixed test
+  seed.
+- `core/setup.sh --unattended` install mode for CI and automated
+  tests. Double-gated: requires both the `--unattended` flag and
+  `TOTP_PRESENCE_UNATTENDED_OK=1` in the environment. Skips the
+  overwrite prompt, the `otpauth://` URL (would leak the seed into CI
+  logs), the QR, and the 3-attempt self-test. Accepts
+  `TOTP_PRESENCE_TEST_SEED` to install a specific known seed when the
+  test suite needs to generate valid codes.
+- `core/verify.sh` honours `MAX_FAILS_OVERRIDE` and
+  `LOCKOUT_SECONDS_OVERRIDE` from the environment when
+  `TOTP_PRESENCE_TEST_MODE=1`, so lifecycle tests can compress the
+  5-minute lockout into seconds. Two layers of defence keep the hook
+  out of production: the installed sudoers rule has no `SETENV` tag
+  (`sudo /etc/totp-presence/verify` strips the env), and
+  `verify.sh` itself refuses to activate test mode when invoked from
+  the installed path (belt-and-braces on the `$0` basename).
+- Documented boundary tests for the hook's text-match rule:
+  `tests/hook/documented_limitations.bats` asserts that the 5b
+  obfuscation paths (variable indirection, base64-encoded filename,
+  `eval` splitting, script indirection, SCM overwrites) pass through
+  the hook. The file carries a load-bearing header comment — these
+  are intentional fences, not coverage.
+
 ### Changed
 
 - Claude Code hook: read/write split for Bash on protected config
@@ -17,6 +49,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [SECURITY_MODEL.md, §5b](./SECURITY_MODEL.md#5b-modification-of-agent-configuration-via-shell-commands).
   Test coverage: 15 new cases in
   `tests/hook/guard_config_protection.bats`.
+- `docs/ru/SECURITY_MODEL.md` and `SECURITY_MODEL.md` §5b: replaced
+  the prose bullet list of Bash-check limitations with an explicit
+  known-gaps table (vector → why not caught → where complete coverage
+  lives). The hook's scope is now framed as an intentional boundary,
+  not a noted weakness.
+- CI: new `core-lifecycle-ubuntu` job complementing the existing
+  `hook-tests-*`. Ubuntu-only for now; macOS lifecycle coverage is
+  deferred because the code path is OS-agnostic and macOS runner
+  minutes are ~10× ubuntu.
 
 ## [0.2.0] — 2026-04-17
 

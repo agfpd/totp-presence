@@ -343,8 +343,8 @@ install-to-production cycle). Per-version notes —
   lockdown), MCP server (any MCP client), soft prompt
 - Per-user ephemeral session files, FHS-compliant layout
 - Internal pre-release security audit — C1, H1–H3, M1–M3, L1–L5 closed
-- Test suite ([bats](./tests/README.md)) — 49 hook tests + 15 core tests
-- CI with shellcheck + bats on macOS + Ubuntu
+- Test suite ([bats](./tests/README.md)) — 70 hook tests + 26 core tests
+- CI with shellcheck + bats on macOS + Ubuntu, core lifecycle on Ubuntu
 - Versioning, CHANGELOG, tagged releases
 - [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
 

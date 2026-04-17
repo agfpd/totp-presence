@@ -355,8 +355,8 @@ Apache License 2.0. См. [LICENSE](../../LICENSE) и [NOTICE](../../NOTICE).
 - Файлы сессий по пользователям, временные, по схеме FHS
 - Внутренний предрелизный аудит безопасности — закрыты C1, H1–H3,
   M1–M3, L1–L5
-- Набор тестов ([bats](../../tests/README.md)) — 49 для hook + 15 для ядра
-- Непрерывная интеграция: shellcheck и bats на macOS и Ubuntu
+- Набор тестов ([bats](../../tests/README.md)) — 70 для hook + 26 для ядра
+- Непрерывная интеграция: shellcheck и bats на macOS и Ubuntu, core lifecycle на Ubuntu
 - Версионирование, CHANGELOG, релиз-теги
 - [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
 
