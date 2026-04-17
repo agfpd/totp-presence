@@ -67,8 +67,16 @@ teardown() {
         ''|*[!0-9]*) echo "session contents are not a unix timestamp: $ts"; return 1 ;;
     esac
     # Perms: 644. Owner: root (either wheel/Darwin or root/Linux).
+    # stat syntax differs between BSD (macOS) and GNU (Linux), and a
+    # naive `||` fallback does not work: GNU stat reads -f as
+    # --file-system and returns exit 0 with an unrelated payload,
+    # shadowing the BSD attempt. Dispatch explicitly on the platform.
     local mode
-    mode="$(sudo -n stat -f '%Lp' "$session_path" 2>/dev/null || sudo -n stat -c '%a' "$session_path")"
+    if [ "$(uname -s)" = "Darwin" ]; then
+        mode="$(sudo -n stat -f '%Lp' "$session_path")"
+    else
+        mode="$(sudo -n stat -c '%a' "$session_path")"
+    fi
     [ "$mode" = "644" ] || { echo "expected mode 644, got $mode"; return 1; }
     # Cleanup the test-session artefact.
     sudo -n rm -f "$session_path" 2>/dev/null || true
