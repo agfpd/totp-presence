@@ -83,9 +83,10 @@ authenticator on the owner's phone (Google Authenticator, Apple Passwords,
 agent --[verifiable]--> TOTP signal --> physical human
 ```
 
-Key property: **an injection does not know the secret key** — and therefore
-cannot generate a valid code, cannot open a session, and cannot reach
-protected actions.
+Key property: **an injection does not know the secret key** — and
+everything downstream falls with it. Without the key, no valid code.
+Without the code, no session. Without the session, no protected
+actions.
 
 ### What it looks like in practice
 
@@ -310,12 +311,23 @@ detect attacks.
 
 ## Origin
 
-Extracted from the author's production setup — autonomous AI agents
-on Telegram whose only proof of ownership was a linked chat
-identifier. After repeatedly processing external documents it became
-clear that a malicious instruction in text is indistinguishable from
-an owner's command, so the working solution was packaged into a
-reusable form.
+I was building autonomous agents on Telegram, and their only proof
+of ownership was a linked chat_id — I'd gotten used to that as a
+given. Everything changed when I gave an agent access to the GUI.
+Confirming system dialogs, clicking through other windows, doing
+anything on the computer — the agent could now do all of that too.
+That scared me. But I didn't want to lock it down rigidly either —
+confirming every single step breaks the whole point of autonomy.
+
+That's when the window idea was born: the agent gets access to
+dangerous tools only when I confirm my presence. Not a perpetual
+Allow/Deny (which doesn't prove identity) — a time slot. Outside
+the window, nothing. Inside, work freely.
+
+My agents often read websites and external documents — and it became
+obvious: a malicious instruction in text is indistinguishable from
+an owner's command. The agent can't see the difference because it
+isn't there.
 
 ## Prior art
 
@@ -330,10 +342,9 @@ closed off by a retroactive patent.
 
 ## Status
 
-**Released — v0.2.0, actively maintained.** In daily use on the
-author's production agents (three Claude Code instances, full
-install-to-production cycle). Per-version notes —
-[CHANGELOG.md](./CHANGELOG.md).
+**Released — v0.2.0, actively maintained.** I use it daily on my
+three Claude Code instances — full install-to-production cycle.
+Per-version notes — [CHANGELOG.md](./CHANGELOG.md).
 
 **Shipped:**
 
