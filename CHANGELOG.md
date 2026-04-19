@@ -326,6 +326,7 @@ Initial public release on `github.com/agfpd/totp-presence`.
   `SECURITY_MODEL.ru.md`, plus per-component READMEs under `core/`
   and each `examples/*` subdirectory.
 
-[Unreleased]: https://github.com/agfpd/totp-presence/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/agfpd/totp-presence/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/agfpd/totp-presence/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/agfpd/totp-presence/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/agfpd/totp-presence/releases/tag/v0.1.0
