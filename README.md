@@ -354,7 +354,7 @@ Per-version notes — [CHANGELOG.md](./CHANGELOG.md).
   lockdown), MCP server (any MCP client), soft prompt
 - Per-user ephemeral session files, FHS-compliant layout
 - Internal pre-release security audit — C1, H1–H3, M1–M3, L1–L5 closed
-- Test suite ([bats](./tests/README.md)) — 72 hook tests + 26 core tests
+- Test suite ([bats](./tests/README.md)) — 74 hook tests + 26 core tests
 - CI with shellcheck + bats on macOS + Ubuntu, core lifecycle on Ubuntu
 - Versioning, CHANGELOG, tagged releases
 - [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)

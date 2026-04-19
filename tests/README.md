@@ -1,6 +1,6 @@
 # totp-presence tests
 
-Bats-based regression suite. 72 hook tests + 26 core tests. Covers:
+Bats-based regression suite. 74 hook tests + 26 core tests. Covers:
 
 - **`tests/hook/`** — `claude-code-guard.sh` behaviour: read-only
   exit list, session check, config-path protection (H1 case-insensitive

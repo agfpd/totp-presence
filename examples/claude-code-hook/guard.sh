@@ -60,6 +60,25 @@ shopt -s nocasematch
 # wrong session file and (fail-safe) denies.
 HOOK_USER="${USER:-${LOGNAME:-$(id -un 2>/dev/null || echo default)}}"
 
+# Validate HOOK_USER before splicing it into a path. Symmetric with
+# core/verify.sh's SUDO_USER guard and the MCP server's USER_NAME_RE:
+# same POSIX-portable character class, same length bound. The hook
+# trusts $USER from the agent's environment — a hostile or malformed
+# value (`../alice/x`, `evil;rm`) would resolve into a runtime path
+# the hook has no business touching, and would also tempt a future
+# author to splice it into the rejection JSON where a stray `"` would
+# break the parser on the receiving side.
+#
+# Fail safe with an inline deny: emit_deny is defined further down
+# the file, and we want this guard to fire before any other read.
+# The reason text deliberately omits the actual value — splicing
+# untrusted bytes into JSON is exactly the trap this check exists to
+# avoid.
+if ! [[ "$HOOK_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$ ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TOTP hook refused: invoking user name from $USER/$LOGNAME does not match the POSIX-portable pattern [a-zA-Z_][a-zA-Z0-9_-]{0,31} and is unsafe to splice into a runtime path."}}\n'
+    exit 0
+fi
+
 RUNTIME_BASE="/var/run/totp-presence"
 SESSION_FILE="$RUNTIME_BASE/$HOOK_USER/claude-code-session"
 CONFIG_FILE="/etc/totp-presence/claude-code-config"

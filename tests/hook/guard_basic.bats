@@ -199,3 +199,25 @@ teardown() {
     [ "$status" -eq 0 ] || return 1
     assert_deny || return 1
 }
+
+# ---------- HOOK_USER validation (symmetric with verify.sh / MCP) ----------
+# A hostile or malformed $USER must not be spliced into the runtime
+# path. The validation fires before the read-only exit list, so it
+# denies even tools that would otherwise pass without a session.
+
+@test "HOOK_USER with path traversal denies fail-safe" {
+    USER="../alice/x" run run_guard '{"tool_name":"Read","tool_input":{"file_path":"/tmp/x"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+    assert_output_contains "POSIX-portable" || return 1
+    # The raw value must not appear in the JSON reason — otherwise a
+    # $USER containing `"` would break the parser on the consumer side.
+    [[ "$output" != *"alice"* ]] || { printf 'raw HOOK_USER leaked into reason: %s\n' "$output" >&2; return 1; }
+}
+
+@test "HOOK_USER with shell metachar denies fail-safe" {
+    USER="evil;rm" run run_guard '{"tool_name":"Read","tool_input":{"file_path":"/tmp/x"}}'
+    [ "$status" -eq 0 ] || return 1
+    assert_deny || return 1
+    assert_output_contains "POSIX-portable" || return 1
+}
