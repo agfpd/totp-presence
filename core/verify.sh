@@ -304,6 +304,7 @@ migrate_legacy_fail_counter
 # now belongs to another live verify, breaking the serialisation
 # guarantee for that verify.
 LOCK_OWNED=0
+# shellcheck disable=SC2329  # invoked indirectly via `trap cleanup_lock EXIT`
 cleanup_lock() {
     [ "$LOCK_OWNED" = "1" ] || return 0
     rmdir "$LOCK_DIR" 2>/dev/null
@@ -401,7 +402,7 @@ if [ "$SESSION_FLAG" = "--session" ]; then
                     exit 1
                     ;;
             esac
-            REL="${SESSION_PATH#$USER_RUNTIME_DIR/}"
+            REL="${SESSION_PATH#"$USER_RUNTIME_DIR"/}"
             case "$REL" in
                 */*)
                     echo "error: --session path must be a direct child of $USER_RUNTIME_DIR (no subdirectories)" >&2

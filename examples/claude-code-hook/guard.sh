@@ -75,6 +75,7 @@ HOOK_USER="${USER:-${LOGNAME:-$(id -un 2>/dev/null || echo default)}}"
 # untrusted bytes into JSON is exactly the trap this check exists to
 # avoid.
 if ! [[ "$HOOK_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$ ]]; then
+    # shellcheck disable=SC2016  # the literal `$USER`/`$LOGNAME` text is for the human reader, not for shell expansion
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TOTP hook refused: invoking user name from $USER/$LOGNAME does not match the POSIX-portable pattern [a-zA-Z_][a-zA-Z0-9_-]{0,31} and is unsafe to splice into a runtime path."}}\n'
     exit 0
 fi
