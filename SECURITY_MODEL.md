@@ -270,6 +270,7 @@ all. They are closed at the filesystem layer instead (see below).
 | Deferred evaluation | `eval "echo >> settings.json"` | The argument to `eval` is a string literal, the hook does not run it before the agent does | Same |
 | Indirection through a script | `bash /tmp/x.sh` whose contents write to a config | Hook sees only the script invocation, not its contents | Same |
 | Overwrite via SCM tools | `git pull`, `git checkout file`, `git stash pop` | The command does not name config files in argv; the change arrives from the index | Same |
+| `awk` `system()` / `getline` | `awk 'BEGIN{system("rm CLAUDE.md")}' settings.json` | `awk` is on the read-only first-token whitelist (diagnostic awk over configs is a legitimate pattern). `system()` and `("…") \| getline` spawn `/bin/sh` from inside the awk program. The hook's write-marker scan looks for ` rm `/`>`/`;` in the outer command and does not parse awk syntax — extending it to do so would cascade into parsing every interpreter language (`perl -e`, `python -c`, `ruby -e`, …) | Same |
 
 These paths are deliberately passed through so that the hook remains
 a deterministic text filter. Trying to "guess what the command will

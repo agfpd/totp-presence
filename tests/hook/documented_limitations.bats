@@ -82,6 +82,36 @@ teardown() {
     [ "$status" -eq 0 ] || { printf 'expected allow for documented-gap, got status=%d output=%s\n' "$status" "$output" >&2; return 1; }
 }
 
+# ---------- §5b: whitelisted interpreter spawns a shell ----------
+
+@test "[documented-gap] awk BEGIN system() bypasses text match" {
+    # `awk` is on the read-only first-token whitelist (diagnostic awk
+    # over configs is a legitimate, common pattern). Its `system()`
+    # builtin spawns /bin/sh with the literal argument. The hook's
+    # write-marker scan looks for ` rm `, `>`, `;`, `&&`, `||` in the
+    # outer command — it does NOT parse the awk program. Markers like
+    # ` rm ` (space-bounded) do not match against `"rm` inside a
+    # quoted system() argument.
+    #
+    # Closed at the filesystem layer with `chflags uchg` (macOS) /
+    # `chattr +i` (Linux) on the protected configs — not by teaching
+    # the hook to parse awk (which would cascade into parsing every
+    # interpreter language: perl -e, python -c, ruby -e, ...).
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"awk '\''BEGIN{system(\"id\")}'\'' settings.json"}}'
+    [ "$status" -eq 0 ] || { printf 'expected allow for documented-gap, got status=%d output=%s\n' "$status" "$output" >&2; return 1; }
+}
+
+@test "[documented-gap] awk getline through pipe bypasses text match" {
+    # `("cmd") | getline var` is awk syntax that invokes /bin/sh from
+    # inside the awk program. The pipe `|` here is an awk operator
+    # inside the single-quoted program — bash sees it as text, and the
+    # hook's write-marker list intentionally does NOT include a bare
+    # `|` (it is a normal pipeline operator in legitimate shell
+    # commands like `cat foo | head -5`).
+    run run_guard '{"tool_name":"Bash","tool_input":{"command":"awk '\''BEGIN{(\"id\") | getline x}'\'' settings.json"}}'
+    [ "$status" -eq 0 ] || { printf 'expected allow for documented-gap, got status=%d output=%s\n' "$status" "$output" >&2; return 1; }
+}
+
 # ---------- §5b: SCM indirection ----------
 
 @test "[documented-gap] git pull can overwrite config without naming it" {
