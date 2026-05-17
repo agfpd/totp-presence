@@ -13,3 +13,4 @@ tmp/
 
 # Local Claude Code state (per-agent memory, settings)
 .claude/
+CLAUDE.md
