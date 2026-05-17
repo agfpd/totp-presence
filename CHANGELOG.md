@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-05-17
+
+Documentation restructure. No code, behaviour, or on-disk layout
+changes; the upgrade path is unchanged. Note: the install runbook
+moved from `CLAUDE.md` to `AGENT_INSTALL.md` — external links to the
+old path need updating.
+
 ### Changed
 
 - **Renamed `CLAUDE.md` → `AGENT_INSTALL.md`** (and its mirror
