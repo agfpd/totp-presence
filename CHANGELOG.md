@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed `CLAUDE.md` → `AGENT_INSTALL.md`** (and its mirror
+  `docs/ru/CLAUDE.md` → `docs/ru/AGENT_INSTALL.md`). The file was
+  always an install runbook an agent executes for a human, never
+  guidance for working on the codebase; the name now matches the
+  content. Cross-links in `README.md` and `docs/ru/README.md` updated.
+
+### Added
+
+- **New canonical `CLAUDE.md`** — guidance for an agent working on the
+  totp-presence codebase itself: build/lint/test commands, the
+  core/integration boundary, and the cross-file invariants (fail-closed
+  asymmetry, parse-not-source, the read-only exit-list, the bash 3.2
+  floor, the double-gated test mode). Intentionally English-only; no
+  `docs/ru` mirror.
+
 ## [0.2.1] — 2026-04-18
 
 Audit-driven bugfix release. Four medium-severity bugs found in a

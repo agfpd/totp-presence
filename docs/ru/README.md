@@ -368,7 +368,7 @@ Apache License 2.0. См. [LICENSE](../../LICENSE) и [NOTICE](../../NOTICE).
 - Набор тестов ([bats](../../tests/README.md)) — 74 для hook + 26 для ядра
 - Непрерывная интеграция: shellcheck и bats на macOS и Ubuntu, core lifecycle на Ubuntu
 - Версионирование, CHANGELOG, релиз-теги
-- [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
+- [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [AGENT_INSTALL.md](./AGENT_INSTALL.md)
 
 **Открыто:**
 
@@ -377,4 +377,6 @@ Apache License 2.0. См. [LICENSE](../../LICENSE) и [NOTICE](../../NOTICE).
 
 ---
 
-Для AI-агентов, читающих это репо: см. [CLAUDE.md](./CLAUDE.md).
+AI-агенту, которого попросили установить totp-presence: см.
+[AGENT_INSTALL.md](./AGENT_INSTALL.md). Агенту, который работает над
+самим кодом totp-presence: см. [CLAUDE.md](../../CLAUDE.md).

@@ -1,9 +1,12 @@
-English version: [../../CLAUDE.md](../../CLAUDE.md)
+English version: [../../AGENT_INSTALL.md](../../AGENT_INSTALL.md)
 
-# totp-presence — инструкции проекта
+# totp-presence — рантбук установки для агента
 
-Этот файл читается Claude Code при открытии репозитория.
-Описание проекта — в [README.md](./README.md).
+Этот файл — пошаговый рантбук, по которому AI-агент устанавливает
+totp-presence, когда человек его об этом просит. Это **не** руководство
+по работе над кодом totp-presence — оно лежит в
+[CLAUDE.md](../../CLAUDE.md). Описание проекта — в
+[README.md](./README.md).
 
 ---
 

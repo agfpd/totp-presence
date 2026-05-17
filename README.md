@@ -357,7 +357,7 @@ Per-version notes — [CHANGELOG.md](./CHANGELOG.md).
 - Test suite ([bats](./tests/README.md)) — 74 hook tests + 26 core tests
 - CI with shellcheck + bats on macOS + Ubuntu, core lifecycle on Ubuntu
 - Versioning, CHANGELOG, tagged releases
-- [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [CLAUDE.md](./CLAUDE.md)
+- [SECURITY_MODEL.md](./SECURITY_MODEL.md) + [AGENT_INSTALL.md](./AGENT_INSTALL.md)
 
 **Open:**
 
@@ -366,4 +366,6 @@ Per-version notes — [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 
-For AI agents reading this repo: see [CLAUDE.md](./CLAUDE.md).
+For an AI agent asked to install totp-presence: see
+[AGENT_INSTALL.md](./AGENT_INSTALL.md). For an agent working on the
+totp-presence codebase itself: see [CLAUDE.md](./CLAUDE.md).

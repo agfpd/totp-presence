@@ -1,221 +1,176 @@
-Russian version: [docs/ru/CLAUDE.md](./docs/ru/CLAUDE.md)
+# CLAUDE.md
 
-# totp-presence — project instructions
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-This file is read by Claude Code when the repository is opened.
-Project description — in [README.md](./README.md).
+This is the guide for working **on** the totp-presence codebase. The
+runbook an agent follows to **install** totp-presence for a user is a
+separate file: [AGENT_INSTALL.md](./AGENT_INSTALL.md). Product
+description — [README.md](./README.md). Threat model and residual
+risks — [SECURITY_MODEL.md](./SECURITY_MODEL.md).
 
----
+There is no build step: pure `bash` + inline Python standard library,
+zero pip/npm dependencies.
 
-## For humans
+## Commands
 
-**totp-presence** — a mechanism that gives an AI agent a way to
-verify that it is talking to its actual owner. Details and
-installation — in [README.md](./README.md). You can simply tell
-the agent: *"install totp-presence for me"*.
-
----
-
-## For AI agents
-
-If a human asks to install totp-presence — follow these
-instructions. Post-installation behavioral rules are described in
-[examples/soft-prompt/prompt.md](./examples/soft-prompt/prompt.md) —
-they are copied into CLAUDE.md or the agent's system prompt.
-
-**Warn the human before starting.** You cannot execute sudo commands
-yourself — they require a password that only the human enters.
-Explain in advance which commands will be needed:
-
-**Required sudo commands:**
-```sh
-# Step 2 — core installation (key generation, sudoers, self-test)
-sudo ./core/setup.sh install
-
-# Step 3 — integration installation (hook, session file, config)
-sudo ./examples/claude-code-hook/install.sh
-```
-
-**Optional sudo commands (depend on configuration):**
-```sh
-# Step 3, if a different session window is needed (default 25 min):
-sudo ./examples/claude-code-hook/install.sh --window-minutes 15
-
-# Step 3, to pin the lockdown mode explicitly (recommended on reinstall):
-sudo ./examples/claude-code-hook/install.sh --full-lockdown
-sudo ./examples/claude-code-hook/install.sh --selective-edit-write
-
-# Step 6, if the agent operates via Telegram/Slack:
-sudo ./examples/claude-code-hook/install.sh --messaging-tools "mcp__plugin_telegram_telegram__reply|mcp__plugin_telegram_telegram__react|mcp__plugin_telegram_telegram__edit_message|mcp__plugin_telegram_telegram__download_attachment"
-```
-
-**What the human will need to do besides entering a password:**
-- Step 2: scan the QR code with an authenticator (appears in the
-  terminal) and enter a 6-digit code for verification.
-- Step 6 (optional): confirm the `settings.json` edit when Claude
-  Code prompts.
-
-The authenticator must be ready before step 2 — the QR needs to be
-scanned immediately. If the human wants hard lockdown (step 6) —
-steps 1–5 must be completed first and Claude Code must be restarted.
-
-### Step 1. Check platform and dependencies
+Lint (the CI gate — anything at `warning` or `error` fails):
 
 ```sh
-uname -s       # must be Darwin or Linux. If not — WSL is needed.
-command -v python3   # standard library, pip not needed
+find . -type f -name '*.sh' -not -path './.git/*' -not -path './tests/*' -print0 \
+  | xargs -0 shellcheck --shell=bash --severity=warning --exclude=SC1091
 ```
 
-If python3 is not found: on macOS install via Xcode Command Line
-Tools (`xcode-select --install`), on Linux — via the package manager
-(`apt install python3` or equivalent).
+Info-level hints (SC2015, SC2012, SC2181) are acknowledged, not
+CI-blocking — do not churn code to silence them.
 
-Optional: `qrencode` for terminal QR display
-(`brew install qrencode` on macOS, `apt install qrencode` on Linux).
-Without it the installer will display the URL as text.
-
-### Step 2. Install the core
-
-**Before running** prepare the authenticator — the QR will appear
-during installation and must be scanned immediately:
-
-- **Full-featured authenticators** (Google Authenticator, Authy,
-  1Password, Bitwarden) — ready immediately, simply scan the QR.
-- **Apple Passwords on macOS** — requires a placeholder entry in
-  advance: Passwords → New Password → Title `totp-presence`, any
-  username/password, Website `https://totp-presence.local`.
-  Save. Then when scanning: Codes → + → Scan QR Code with Camera →
-  select the entry.
-
-When the authenticator is ready:
+Tests (bats; install `bats-core`):
 
 ```sh
-sudo ./core/setup.sh install
+bats tests/hook/                         # default loop: no sudo, sandboxed, runs anywhere
+bats tests/                              # full suite (path-val skips w/o core, lifecycle skips w/o opt-in)
+bats tests/hook/guard_basic.bats         # one file
+bats tests/hook/guard_basic.bats -f 'substring'   # one test by name
+bats tests/core/verify_path_validation.bats       # needs an installed core; non-destructive
 ```
 
-sudo will ask for a password once. The installer:
-- generates a secret key under root
-- displays a QR code — scan it with the authenticator
-- writes a sudoers rule: passwordless sudo **only** for
-  `/etc/totp-presence/verify`
-- runs a self-test — requests a fresh code
-
-If the self-test is not passed within 3 attempts — the core is
-installed, but the authenticator binding may be incorrect. Ask the
-human to check: is the correct entry in the authenticator, does the
-phone time match. Re-verification:
-`sudo /etc/totp-presence/verify <fresh-code>`.
-
-### Step 3. Install the integration
+Destructive lifecycle suite — CI or a throwaway box only (trips the real
+fail-counter, briefly renames the seed):
 
 ```sh
-sudo ./examples/claude-code-hook/install.sh
+sudo TOTP_PRESENCE_UNATTENDED_OK=1 \
+     TOTP_PRESENCE_TEST_SEED=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP \
+     ./core/setup.sh install --unattended
+TOTP_PRESENCE_RUN_LIFECYCLE=1 bats tests/core/verify_lifecycle.bats
 ```
 
-Creates two static files in `/etc/totp-presence/`: the hook and the
-configuration (`claude-code-guard.sh` and `claude-code-config`, both
-root-owned). The session file is created lazily by the verifier on
-the first successful TOTP code at
-`/var/run/totp-presence/<user>/claude-code-session`. Prints a JSON
-snippet for the hook — **do not add it yet**.
+## Architecture
 
-### Step 4. Connect the MCP server
+Two layers with a hard boundary:
 
-```sh
-pip3 install fastmcp
-```
+- **`core/`** — the verification primitive. `verify.sh` answers exactly
+  one question ("is this the current TOTP for the installed seed?") and
+  optionally stamps a session file; `setup.sh` installs/updates it.
+  Public API: `sudo /etc/totp-presence/verify <code> [--session <path>]`,
+  exit codes `0` ok / `1` usage-or-env error / `2` invalid / `3` locked
+  out (see `core/README.md`). The core knows nothing about windows,
+  agents, or config editing.
+- **`examples/`** — integrations, each owning its own session-file
+  name, window length, and rejection format: `claude-code-hook/`
+  (PreToolUse hook `guard.sh` + installer), `mcp-server/` (FastMCP
+  stdio server, 3 tools, any MCP client), `soft-prompt/` (behavioural
+  rules, no code).
 
-On macOS with Homebrew Python, `pip3 install fastmcp` may fail with
-a PEP 668 error. Solution: `pip3 install --break-system-packages
-fastmcp` or `pipx install fastmcp`.
+Rule of thumb: if a change concerns session windows, a specific agent
+system, or editing user config, it belongs in `examples/`, never in
+`core/`. See "What the core does NOT do" in `core/README.md`.
 
-Add an entry to the MCP server configuration. **Ask the human** where
-to add it — there are two options:
-- `~/.claude.json` — global for all projects
-- `.mcp.json` in the root of the target agent's project — only for it
+**Trust chain.** agent → a narrow NOPASSWD sudoers rule scoped to the
+verifier alone → root `verify` reads the seed, compares RFC 6238 →
+writes a timestamp into the session file → the integration compares
+that timestamp against its window. The seed never leaves root and is
+fed to Python on stdin (not argv/env), so it never appears in `ps` or
+procfs.
 
-Do not choose yourself — this is the user's decision. Format and
-examples — in
-[examples/mcp-server/README.md](./examples/mcp-server/README.md).
-sudo is not needed. After restarting Claude Code, the agent will have
-access to the tools `mcp__totp-presence__totp_verify`,
-`mcp__totp-presence__totp_check_session`,
-`mcp__totp-presence__totp_status`.
+**FHS layout.** Static root-owned under `/etc/totp-presence/` (`secret`
+600, `verify` 755, `<int>-config` 644, `<int>-guard.sh` 755) plus the
+440 sudoers rule. Ephemeral under `/var/run/totp-presence/` (global
+`fail-counter` + `.verify-lock/`, per-user `<user>/<int>-session`).
+The runtime tree is wiped on reboot **by design** — "the owner was
+here N minutes ago" must not survive a power cycle.
 
-### Step 5. Add the soft prompt
+**Docs are mirrored EN↔RU.** Any change to `README.md`,
+`SECURITY_MODEL.md`, `PRIOR_ART.md`, `AGENT_INSTALL.md`, or the
+`core/` and `examples/*` READMEs must update `docs/ru/<same path>`.
+This file (`CLAUDE.md`) is intentionally English-only — do **not**
+create a `docs/ru/CLAUDE.md`.
 
-Open [examples/soft-prompt/prompt.md](./examples/soft-prompt/prompt.md),
-replace `<integration>` with the integration name (e.g., `claude-code`).
-**Ask the human** whose CLAUDE.md should receive the block — the current
-agent's (if it will be using totp-presence) or another's. Do not silently
-copy it into the first file you find.
+## Invariants you can break without noticing
 
-This gives the agent rules: when to check the session, how to accept
-codes, what not to do.
+These span multiple files and are not obvious from any single one.
 
-### Step 6 (optional). Enable hard lockdown
+1. **Fail-closed vs fail-open is deliberately asymmetric** in
+   `verify.sh`. A brute-force-counter persistence failure exits `3`
+   (an outside observer cannot distinguish "counter saturated" from
+   "counter not written", so brute-force via induced write failures is
+   blocked). A session-write failure exits `1` (an absent session is
+   the safe default and cannot be mistaken for "verified"). Do not
+   collapse these to one code.
 
-Do not add the snippet yourself — propose it to the human, explain
-what will happen, then let them confirm the edit themselves.
+2. **Config and seed are parsed as data, never `source`d/`eval`d.**
+   `claude-code-config` is 0644 root:wheel today; sourcing it would
+   become RCE the instant that permission invariant slips
+   (containerisation, bind-mount, umask race). The rationale block in
+   `guard.sh` (~line 116) is load-bearing — keep parsing, don't
+   "simplify" to `source`.
 
-**Pre-conditions:**
-- The MCP server from step 4 must be connected and the tools
-  `mcp__totp-presence__totp_verify` must be visible. Without that the
-  hook locks the agent out with no way to open a session.
-- If the agent talks to the human through an external channel
-  (Telegram, Slack, etc.), pass `--messaging-tools "<pipe-separated
-  tool names>"` to the installer so the messaging tool stays callable
-  without a session — otherwise the agent cannot ask for a code.
+3. **The hook's read-only exit-list is short and stable on purpose.**
+   `Read|Glob|Grep|LS|TodoWrite|WebSearch|ToolSearch` plus
+   `mcp__totp-presence__*` only. Any unrecognised, new, or MCP tool
+   must fail safe into the session check. Never add Bash, Write, Edit,
+   NotebookEdit, Task, WebFetch, or any other MCP tool.
+   `is_bash_read_only` is reject-on-any-doubt: a write misread as a
+   read is a security bug; a read misread as a write is just an extra
+   TOTP prompt.
 
-**Decisions to bring to the human:**
+4. **bash 3.2 is the floor** (macOS `/bin/bash` is 3.2.57; CI runs
+   `macos-latest` to enforce it). Notably: `$'\0'` inside `${...}`
+   parameter expansion silently misbehaves on 3.2 and once broke
+   config protection entirely — prefer `read -r` line parsing (see the
+   JSON-parse comment in `guard.sh`).
 
-1. **Lockdown mode.** Full (matcher `.*`, recommended — new tools
-   protected automatically) or selective (narrow matcher — less
-   friction, new tools are not). Pin the mode with `--full-lockdown`
-   or `--selective-edit-write` so the installer does not silently
-   inherit a stale `EDIT_WRITE_CONFIG_ONLY` value.
+5. **Test-mode overrides are double-gated.**
+   `TOTP_PRESENCE_TEST_MODE` / `MAX_FAILS_OVERRIDE` /
+   `LOCKOUT_SECONDS_OVERRIDE` are honoured only when *both* hold: the
+   installed sudoers rule carries no `SETENV` tag, *and* `verify.sh`
+   sees `$0` resolving to the source tree (`*/core/verify.sh`), never
+   `/etc/totp-presence/verify`. Weakening either makes the production
+   rate-limit bypassable.
 
-2. **Where to add the snippet.** Project-level
-   `<project>/.claude/settings.json` (only this agent) or global
-   `~/.claude/settings.json` (all projects). Both append to the
-   `hooks.PreToolUse` array.
+6. **One untrusted-name→path regex, three copies, kept in lockstep:**
+   `^[a-zA-Z_][a-zA-Z0-9_-]{0,31}$` in `verify.sh` (`SUDO_USER`),
+   `guard.sh` (`HOOK_USER`), and `mcp-server/server.py`
+   (`USER_NAME_RE`). The `--session` filename suffix rule
+   (`*-session`, direct child of the per-user dir, no `..`/`//`) is
+   enforced in `verify.sh` and assumed by every integration.
 
-Snippet format, matcher contents, safe-tools list, full
-`EDIT_WRITE_CONFIG_ONLY` semantics — in
-[examples/claude-code-hook/README.md](./examples/claude-code-hook/README.md).
+7. **The protected-config-path set is duplicated** across `guard.sh`
+   (selective Edit/Write bypass, `IS_PROTECTED_PATH`, the Bash command
+   scan — three spots), `examples/soft-prompt/prompt.md`, and
+   `SECURITY_MODEL.md`: `settings.json`, `settings.local.json`,
+   `.claude.json`, `CLAUDE.md`, `.claude/agents/*`. Change all
+   together. These paths use the tighter `CONFIG_WINDOW_SECONDS`
+   (120 s), not the normal `WINDOW_SECONDS`.
 
-To disable: remove the snippet from `settings.json`. Soft mode
-(MCP + soft prompt) keeps working.
+8. **Some obfuscation gaps are intentional, not bugs.** awk
+   `system()`/`getline`, shell variables/`eval`/base64, and indirect
+   writes are deliberately *not* caught by `guard.sh`'s text matching —
+   catching them would cascade into parsing every interpreter
+   language. They are anchored by `tests/hook/documented_limitations.bats`
+   and the §5b known-gaps table in `SECURITY_MODEL.md`. Read that
+   rationale before "fixing" a gap, and update both anchors if the
+   behaviour really changes.
 
-### Updating an existing install
+## Versioning & release
 
-If totp-presence is already installed and the human just did a
-`git pull` to a newer release, do NOT run `install` again — the
-core installer would regenerate the seed and break authenticator
-pairings. Use the upgrade path:
+- `/VERSION` at the repo root is the single source of truth; `setup.sh`
+  copies it into `/etc/totp-presence/VERSION` on install so `status`
+  can report the live build.
+- `CHANGELOG.md` follows Keep a Changelog + SemVer — put user-visible
+  changes under `## [Unreleased]`.
+- **The upgrade path is the `update` subcommand, never re-`install`.**
+  `sudo ./core/setup.sh update` plus each integration's `install.sh
+  update` replace only scripts and preserve the seed, sudoers rule,
+  config, and open sessions. `install` regenerates the seed (breaks
+  every authenticator pairing) and reprints the otpauth URL/QR. The
+  "Updating" sections of `README.md` / `AGENT_INSTALL.md` must stay in
+  sync with the actual subcommand behaviour.
 
-```sh
-sudo ./core/setup.sh update
-sudo ./examples/claude-code-hook/install.sh update
-```
+## Test design gotchas
 
-Both commands replace only the installed scripts (`verify` and
-`claude-code-guard.sh`) and the core's `VERSION` marker. They
-preserve the seed, the sudoers rule, every configuration value
-(`WINDOW_SECONDS`, `EXTRA_SAFE_TOOLS`, `EDIT_WRITE_CONFIG_ONLY`),
-any open session, and the authenticator pairing. The
-brute-force fail-counter is cleared so the upgraded verifier
-starts from a clean slate. No re-enrolment and no Claude Code
-restart are needed.
-
-### Removal
-
-Integration first, then core:
-
-```sh
-sudo ./examples/claude-code-hook/install.sh uninstall
-sudo ./core/setup.sh uninstall
-```
-
-The snippet in `~/.claude/settings.json` is not touched by the
-installer — it prints the exact command for the human to run.
+- Hook tests sandbox by `sed`-rewriting guard.sh's hardcoded `/etc/...`
+  and `/var/run/...` paths into a tmpdir (`tests/helpers.bash`,
+  `hook_sandbox_setup`). If you add a new hardcoded absolute path to
+  `guard.sh`, add the matching `sed -e` rewrite there, or every
+  sandboxed test silently reads the real system path.
+- bats gotcha: a bare `[[ ... ]]` does **not** abort a test on
+  failure. Chain `|| return 1` or use the `assert_*` helpers.
